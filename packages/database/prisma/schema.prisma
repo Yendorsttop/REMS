@@ -1,0 +1,55 @@
+generator client { provider = "prisma-client-js" }
+datasource db { provider = "postgresql" url = env("DATABASE_URL") }
+enum IdentityStatus { ACTIVE SUSPENDED DEACTIVATED }
+enum OrganizationUnitKind { ORGANIZATION DEPARTMENT TEAM }
+enum OrganizationRole { FOUNDER EXECUTIVE MANAGER MEMBER }
+model ExecutiveIdentity {
+  id String @id @db.VarChar(64)
+  displayName String @db.VarChar(120)
+  status IdentityStatus @default(ACTIVE)
+  externalSubject String? @unique @db.VarChar(255)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+  memberships Membership[]
+  permissions PermissionAssignment[]
+  reportsTo Membership[] @relation("MembershipManager")
+}
+model OrganizationUnit {
+  id String @id @db.VarChar(64)
+  name String @db.VarChar(120)
+  kind OrganizationUnitKind
+  parentId String? @db.VarChar(64)
+  parent OrganizationUnit? @relation("UnitHierarchy",fields:[parentId],references:[id],onDelete:Restrict)
+  children OrganizationUnit[] @relation("UnitHierarchy")
+  memberships Membership[]
+  permissions PermissionAssignment[]
+}
+model Membership {
+  id String @id @db.VarChar(64)
+  executiveId String @db.VarChar(64)
+  unitId String @db.VarChar(64)
+  role OrganizationRole
+  managerExecutiveId String? @db.VarChar(64)
+  executive ExecutiveIdentity @relation(fields:[executiveId],references:[id],onDelete:Restrict)
+  unit OrganizationUnit @relation(fields:[unitId],references:[id],onDelete:Restrict)
+  manager ExecutiveIdentity? @relation("MembershipManager",fields:[managerExecutiveId],references:[id],onDelete:Restrict)
+  @@unique([executiveId,unitId,role])
+}
+model PermissionAssignment {
+  id String @id @db.VarChar(64)
+  executiveId String @db.VarChar(64)
+  permission String @db.VarChar(160)
+  organizationUnitId String? @db.VarChar(64)
+  executive ExecutiveIdentity @relation(fields:[executiveId],references:[id],onDelete:Restrict)
+  organizationUnit OrganizationUnit? @relation(fields:[organizationUnitId],references:[id],onDelete:Restrict)
+  @@unique([executiveId,permission,organizationUnitId])
+}
+model AuditEvent {
+  id String @id @db.Uuid
+  occurredAt DateTime @db.Timestamptz(6)
+  actorId String @db.VarChar(64)
+  type String @db.VarChar(160)
+  subjectId String @db.VarChar(64)
+  payload Json
+  @@index([subjectId,occurredAt])
+}
