@@ -135,13 +135,15 @@ jobs:
           test "$(docker image inspect rems-web:${{ github.sha }} --format '{{.Config.User}}')" = node
           test -z "$(docker run --rm rems-api:${{ github.sha }} sh -c 'find /app -name .env -o -name .git -o -name "*.test.ts" | head -1')"
       - name: Generate standard SBOM evidence
-        uses: anchore/sbom-action@v0.17.2
+        # anchore/sbom-action v0.17.2
+        uses: anchore/sbom-action@61119d458adab75f756bc0b9e4bde25725f86a7a
         with:
           image: rems-api:${{ github.sha }}
           format: cyclonedx-json
           output-file: rems-api-sbom.cdx.json
       - name: Scan API production image (findings are not suppressed)
-        uses: aquasecurity/trivy-action@0.28.0
+        # aquasecurity/trivy-action v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
         with:
           image-ref: rems-api:${{ github.sha }}
           severity: CRITICAL,HIGH
