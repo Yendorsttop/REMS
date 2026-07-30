@@ -230,16 +230,23 @@ export class PrismaAuditEventPort implements AuditEventPort {
 export class PrismaSecurityEvidencePort implements SecurityEvidencePort {
   constructor(private readonly prisma: PrismaService) {}
   async append(event: SecurityEvidence): Promise<void> {
-    await this.prisma.systemSecurityEvidence.create({
-      data: {
-        id: randomUUID(),
-        occurredAt: new Date(),
-        eventType: event.eventType,
-        outcome: 'DENIED',
-        reasonCode: event.reasonCode,
-        correlationId: event.correlationId.slice(0, 128),
-      },
-    });
+    const id = randomUUID();
+    const occurredAt = new Date();
+    const outcome = 'DENIED' as const;
+    if (!['AUTHENTICATION_REJECTED', 'AUTHORITY_ELEVATION_REJECTED'].includes(event.eventType))
+      throw new Error('Invalid security evidence event type');
+    if (!SECURITY_REASON_CODES.includes(event.reasonCode))
+      throw new Error('Invalid security evidence reason code');
+    if (!/^[A-Za-z0-9._:-]{1,128}$/.test(event.correlationId))
+      throw new Error('Invalid security evidence correlation identifier');
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id))
+      throw new Error('Invalid security evidence identifier');
+    if (Number.isNaN(occurredAt.getTime())) throw new Error('Invalid security evidence timestamp');
+    await this.prisma.$executeRaw`
+      INSERT INTO "SystemSecurityEvidence"
+        ("id", "occurredAt", "eventType", "outcome", "reasonCode", "correlationId")
+      VALUES
+        (${id}::uuid, ${occurredAt}, ${event.eventType}, ${outcome}, ${event.reasonCode}, ${event.correlationId})`;
   }
 }
 
