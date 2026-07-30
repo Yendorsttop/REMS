@@ -4,11 +4,36 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import type { INestApplication } from '@nestjs/common';
 import { AppModule, configureOpenApi } from './app.js';
+import { Red001Facade } from './app.js';
+import { Red001Service } from '@rems/red-001';
+import { PrismaService } from '@rems/database';
+import {
+  InMemoryAuditEventPort,
+  InMemoryExecutiveIdentityRepository,
+  InMemoryOrganizationRepository,
+  StaticAuthorizationPort,
+} from '../../../packages/testing/src/index.js';
+const permissions = new Set([
+  'red001.identity.create',
+  'red001.identity.lifecycle',
+  'red001.identity.read',
+]);
 describe('RED-001 REST API', () => {
   let app: INestApplication;
   beforeEach(async () => {
+    const service = new Red001Service(
+      new InMemoryExecutiveIdentityRepository(),
+      new InMemoryOrganizationRepository(),
+      new InMemoryAuditEventPort(),
+      new StaticAuthorizationPort(new Map([['synthetic-founder', permissions]])),
+    );
     app = (
-      await Test.createTestingModule({ imports: [AppModule] }).compile()
+      await Test.createTestingModule({ imports: [AppModule] })
+        .overrideProvider(Red001Facade)
+        .useValue(service)
+        .overrideProvider(PrismaService)
+        .useValue({})
+        .compile()
     ).createNestApplication();
     configureOpenApi(app);
     await app.init();

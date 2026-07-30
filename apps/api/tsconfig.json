@@ -23,7 +23,7 @@
       "path": "../../packages/observability/tsconfig.json"
     },
     {
-      "path": "../../packages/testing/tsconfig.json"
+      "path": "../../packages/database/tsconfig.json"
     }
   ]
 }

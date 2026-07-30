@@ -13,9 +13,9 @@
     "@nestjs/swagger": "^11.4.6",
     "@rems/config": "workspace:*",
     "@rems/contracts": "workspace:*",
+    "@rems/database": "workspace:*",
     "@rems/observability": "workspace:*",
     "@rems/red-001": "workspace:*",
-    "@rems/testing": "workspace:*",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1"
   },
