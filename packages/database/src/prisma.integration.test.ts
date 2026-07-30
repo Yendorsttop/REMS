@@ -10,7 +10,7 @@ import {
   PrismaTransactionContext,
 } from './index.js';
 
-const databaseSuite = process.env['DATABASE_URL'] ? describe : describe.skip;
+const databaseSuite = process.env['RUN_DATABASE_INTEGRATION'] === '1' ? describe : describe.skip;
 databaseSuite('RED-001 Prisma/PostgreSQL persistence', () => {
   let prisma: PrismaService;
   let transaction: PrismaTransactionContext;
@@ -121,9 +121,26 @@ databaseSuite('RED-001 Prisma/PostgreSQL persistence', () => {
     expect(
       (await identities.findByExternalSubject(`${prefix}-external-manager`))?.snapshot.id,
     ).toBe(managerId);
+    expect((await identities.findById(memberId))?.snapshot.externalSubject).toBeUndefined();
+    expect(await organizations.findUnit(organizationId)).toEqual({
+      id: organizationId,
+      name: 'Synthetic Organization',
+      kind: 'ORGANIZATION',
+    });
+    expect(await organizations.findUnit(teamId)).toEqual(
+      expect.objectContaining({ parentId: departmentId }),
+    );
+    expect(await organizations.membershipsFor(managerId)).toEqual([
+      expect.not.objectContaining({ managerExecutiveId: expect.anything() }),
+    ]);
     expect(await organizations.membershipsFor(memberId)).toEqual([
       expect.objectContaining({ role: 'MEMBER', managerExecutiveId: managerId }),
     ]);
+    expect(await organizations.permissionsFor(founderId)).toEqual(
+      expect.arrayContaining([
+        expect.not.objectContaining({ organizationUnitId: expect.anything() }),
+      ]),
+    );
     expect(await organizations.permissionsFor(memberId)).toEqual([
       expect.objectContaining({ organizationUnitId: teamId }),
     ]);

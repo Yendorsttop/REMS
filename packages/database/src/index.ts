@@ -27,8 +27,19 @@ type IdentityRecord = {
   status: 'ACTIVE' | 'SUSPENDED' | 'DEACTIVATED';
   externalSubject: string | null;
 };
-type MembershipRecord = Membership & { managerExecutiveId: string | null };
-type PermissionRecord = PermissionAssignment & { organizationUnitId: string | null };
+type MembershipRecord = {
+  id: string;
+  executiveId: string;
+  unitId: string;
+  role: 'FOUNDER' | 'EXECUTIVE' | 'MANAGER' | 'MEMBER';
+  managerExecutiveId: string | null;
+};
+type PermissionRecord = {
+  id: string;
+  executiveId: string;
+  permission: string;
+  organizationUnitId: string | null;
+};
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
@@ -63,7 +74,7 @@ export class PrismaExecutiveIdentityRepository implements ExecutiveIdentityRepos
       id: ExecutiveId.create(record.id),
       displayName: DisplayName.create(record.displayName),
       status: record.status,
-      ...(record.externalSubject ? { externalSubject: record.externalSubject } : {}),
+      ...(record.externalSubject !== null ? { externalSubject: record.externalSubject } : {}),
     });
   }
   async findById(id: string): Promise<ExecutiveIdentity | null> {
@@ -113,7 +124,7 @@ export class PrismaOrganizationRepository implements OrganizationRepository {
           id: unit.id,
           name: unit.name,
           kind: unit.kind,
-          ...(unit.parentId ? { parentId: unit.parentId } : {}),
+          ...(unit.parentId !== null ? { parentId: unit.parentId } : {}),
         }
       : null;
   }
@@ -139,7 +150,9 @@ export class PrismaOrganizationRepository implements OrganizationRepository {
       executiveId: value.executiveId,
       unitId: value.unitId,
       role: value.role,
-      ...(value.managerExecutiveId ? { managerExecutiveId: value.managerExecutiveId } : {}),
+      ...(value.managerExecutiveId !== null
+        ? { managerExecutiveId: value.managerExecutiveId }
+        : {}),
     }));
   }
   async savePermission(value: PermissionAssignment): Promise<void> {
@@ -162,7 +175,9 @@ export class PrismaOrganizationRepository implements OrganizationRepository {
       id: value.id,
       executiveId: value.executiveId,
       permission: value.permission,
-      ...(value.organizationUnitId ? { organizationUnitId: value.organizationUnitId } : {}),
+      ...(value.organizationUnitId !== null
+        ? { organizationUnitId: value.organizationUnitId }
+        : {}),
     }));
   }
 }
