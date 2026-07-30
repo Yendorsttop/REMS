@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 const databaseSuite =
   process.env['RUN_DATABASE_SECURITY_INTEGRATION'] === '1' ? describe : describe.skip;
 
-databaseSuite('FIP-005C restricted PostgreSQL roles', () => {
+databaseSuite('FIP-005C/FIP-005D restricted PostgreSQL roles', () => {
   let application: PrismaClient;
   let reader: PrismaClient;
   let migrationOwner: PrismaClient;
@@ -81,7 +81,7 @@ databaseSuite('FIP-005C restricted PostgreSQL roles', () => {
     await expect(reader.$executeRawUnsafe('TRUNCATE TABLE "AuditEvent"')).rejects.toThrow();
   });
 
-  it('applies least-privilege ownership and grants to the external identity link', async () => {
+  it('gives the application SELECT-only access to an administratively seeded link', async () => {
     const owners = await application.$queryRaw<Array<{ tableowner: string }>>`
       SELECT tableowner FROM pg_tables
       WHERE schemaname = 'public' AND tablename = 'ExternalIdentityLink'`;
@@ -96,14 +96,24 @@ databaseSuite('FIP-005C restricted PostgreSQL roles', () => {
         SELECT subject FROM "ExternalIdentityLink"
         WHERE issuer = 'https://security.test' AND subject = ${linkedSubject}`,
     ).resolves.toEqual([{ subject: linkedSubject }]);
-    const forbiddenStatements = [
+  });
+
+  it.each([
+    [
+      'INSERT',
       `INSERT INTO "ExternalIdentityLink" (id, issuer, subject, "executiveId", "updatedAt") VALUES ('${randomUUID()}', 'https://forbidden.test', 'insert', '${linkedExecutiveId}', now())`,
+    ],
+    [
+      'UPDATE',
       `UPDATE "ExternalIdentityLink" SET active = false WHERE subject = '${linkedSubject}'`,
-      `DELETE FROM "ExternalIdentityLink" WHERE subject = '${linkedSubject}'`,
-      'TRUNCATE TABLE "ExternalIdentityLink"',
-    ];
-    for (const statement of forbiddenStatements)
-      await expect(application.$executeRawUnsafe(statement)).rejects.toThrow();
+    ],
+    ['DELETE', `DELETE FROM "ExternalIdentityLink" WHERE subject = '${linkedSubject}'`],
+    ['TRUNCATE', 'TRUNCATE TABLE "ExternalIdentityLink"'],
+  ])('rejects application-role ExternalIdentityLink %s', async (_operation, statement) => {
+    await expect(application.$executeRawUnsafe(statement)).rejects.toThrow();
+  });
+
+  it('denies the audit reader all ExternalIdentityLink access', async () => {
     await expect(
       reader.$queryRawUnsafe('SELECT * FROM "ExternalIdentityLink" LIMIT 1'),
     ).rejects.toThrow();
