@@ -34,6 +34,23 @@ jobs:
         with: { version: 9.15.4 }
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
+      - name: Install PostgreSQL 17 client tools
+        run: |
+          sudo install -d -m 0755 /usr/share/postgresql-common/pgdg
+          curl --fail --silent --show-error \
+            --output /tmp/postgresql-pgdg.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          sudo install -m 0644 /tmp/postgresql-pgdg.asc /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+          . /etc/os-release
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+          /usr/lib/postgresql/17/bin/pg_dump --version
+          /usr/lib/postgresql/17/bin/pg_restore --version
+          test "$(/usr/lib/postgresql/17/bin/pg_dump --version | awk '{print $3}' | cut -d. -f1)" = 17
+          test "$(/usr/lib/postgresql/17/bin/pg_restore --version | awk '{print $3}' | cut -d. -f1)" = 17
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @rems/database prisma:generate
       - run: pnpm exec prettier --check .
@@ -106,6 +123,10 @@ jobs:
           RESTORE_SECURITY_READER_URL: postgresql://rems_security_reader:rems_security_reader_ci_only@localhost:5432/rems_ci_restore
           RESTORE_BACKUP_URL: postgresql://rems_backup:rems_backup_ci_only@localhost:5432/rems_ci_restore
         run: |
+          test "$(command -v pg_dump)" = /usr/lib/postgresql/17/bin/pg_dump
+          test "$(command -v pg_restore)" = /usr/lib/postgresql/17/bin/pg_restore
+          pg_dump --version
+          pg_restore --version
           psql -v ON_ERROR_STOP=1 "$MIGRATION_DATABASE_URL" <<'SQL'
           INSERT INTO "ExecutiveIdentity" (id,"displayName","updatedAt")
           VALUES ('restore-founder','Restore Founder','2026-07-30T00:00:00Z');
