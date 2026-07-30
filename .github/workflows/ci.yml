@@ -117,6 +117,7 @@ jobs:
       - name: Verify vendor-neutral backup and restoration
         env:
           BACKUP_FILE: /tmp/rems-ci.dump
+          RESTORE_ADMIN_URL: postgresql://rems_ci:ci_only@localhost:5432/rems_ci_restore
           RESTORE_DATABASE_URL: postgresql://rems_migration_owner:rems_migration_owner_ci_only@localhost:5432/rems_ci_restore
           RESTORE_APPLICATION_URL: postgresql://rems_application:rems_application_ci_only@localhost:5432/rems_ci_restore
           RESTORE_AUDIT_READER_URL: postgresql://rems_audit_reader:rems_audit_reader_ci_only@localhost:5432/rems_ci_restore
@@ -144,29 +145,85 @@ jobs:
           ./scripts/operations/backup.sh
           psql -v ON_ERROR_STOP=1 "$DATABASE_ADMIN_URL" -c 'CREATE DATABASE rems_ci_restore OWNER rems_migration_owner'
           ./scripts/operations/restore.sh
-          psql -v ON_ERROR_STOP=1 "postgresql://rems_ci:ci_only@localhost:5432/rems_ci_restore" -f packages/database/security/bootstrap-roles.sql
-          psql -v ON_ERROR_STOP=1 "postgresql://rems_ci:ci_only@localhost:5432/rems_ci_restore" -f packages/database/security/bootstrap-identity-admin-role.sql
-          psql -v ON_ERROR_STOP=1 "postgresql://rems_ci:ci_only@localhost:5432/rems_ci_restore" -f packages/database/security/bootstrap-security-reader-role.sql
-          psql -v ON_ERROR_STOP=1 "postgresql://rems_ci:ci_only@localhost:5432/rems_ci_restore" -f packages/database/security/bootstrap-backup-role.sql
-          test "$(psql -v ON_ERROR_STOP=1 "$RESTORE_DATABASE_URL" -Atc 'SELECT count(*) FROM "ExecutiveIdentity" WHERE id='"'"'restore-founder'"'"'')" = 1
-          test "$(psql -v ON_ERROR_STOP=1 "$RESTORE_DATABASE_URL" -Atc 'SELECT count(*) FROM "OrganizationUnit" WHERE id='"'"'restore-org'"'"'')" = 1
-          test "$(psql -v ON_ERROR_STOP=1 "$RESTORE_DATABASE_URL" -Atc 'SELECT count(*) FROM "Membership" WHERE id='"'"'restore-membership'"'"' AND "executiveId"='"'"'restore-founder'"'"' AND "unitId"='"'"'restore-org'"'"' AND role='"'"'FOUNDER'"'"'')" = 1
-          test "$(psql -v ON_ERROR_STOP=1 "$RESTORE_DATABASE_URL" -Atc 'SELECT count(*) FROM "ExternalIdentityLink" WHERE subject='"'"'restore-subject'"'"'')" = 1
-          test "$(psql -v ON_ERROR_STOP=1 "$RESTORE_DATABASE_URL" -Atc 'SELECT count(*) FROM "AuditEvent" WHERE id='"'"'33333333-3333-4333-8333-333333333333'"'"'')" = 1
-          test "$(psql -v ON_ERROR_STOP=1 "$RESTORE_DATABASE_URL" -Atc 'SELECT count(*) FROM "SystemSecurityEvidence" WHERE "correlationId"='"'"'restore-verification'"'"'')" = 1
-          test "$(psql -v ON_ERROR_STOP=1 "$RESTORE_DATABASE_URL" -Atc "SELECT count(*) FROM pg_tables WHERE schemaname='public' AND tableowner='rems_migration_owner' AND tablename IN ('ExecutiveIdentity','OrganizationUnit','Membership','ExternalIdentityLink','AuditEvent','SystemSecurityEvidence')")" = 6
-          test "$(psql -v ON_ERROR_STOP=1 "$RESTORE_DATABASE_URL" -Atc "SELECT has_table_privilege('rems_application','public.\"ExecutiveIdentity\"','SELECT') AND has_table_privilege('rems_application','public.\"AuditEvent\"','INSERT') AND NOT has_table_privilege('rems_application','public.\"AuditEvent\"','UPDATE') AND has_table_privilege('rems_audit_reader','public.\"AuditEvent\"','SELECT') AND has_table_privilege('rems_security_reader','public.\"SystemSecurityEvidence\"','SELECT')")" = t
-          test "$(psql -v ON_ERROR_STOP=1 "$RESTORE_APPLICATION_URL" -Atc 'SELECT count(*) FROM "ExecutiveIdentity" WHERE id='"'"'restore-founder'"'"'')" = 1
-          test "$(psql -v ON_ERROR_STOP=1 "$RESTORE_AUDIT_READER_URL" -Atc 'SELECT count(*) FROM "AuditEvent" WHERE id='"'"'33333333-3333-4333-8333-333333333333'"'"'')" = 1
-          test "$(psql -v ON_ERROR_STOP=1 "$RESTORE_SECURITY_READER_URL" -Atc 'SELECT count(*) FROM "SystemSecurityEvidence" WHERE id='"'"'22222222-2222-4222-8222-222222222222'"'"'')" = 1
-          test "$(psql -v ON_ERROR_STOP=1 "$RESTORE_BACKUP_URL" -Atc 'SELECT count(*) FROM "ExternalIdentityLink" WHERE id='"'"'11111111-1111-4111-8111-111111111111'"'"'')" = 1
-          ! psql -v ON_ERROR_STOP=1 "$RESTORE_APPLICATION_URL" -c 'UPDATE "AuditEvent" SET type='"'"'forbidden'"'"' WHERE id='"'"'33333333-3333-4333-8333-333333333333'"'"''
-          ! psql -v ON_ERROR_STOP=1 "$RESTORE_APPLICATION_URL" -c 'TRUNCATE TABLE "AuditEvent"'
-          ! psql -v ON_ERROR_STOP=1 "$RESTORE_APPLICATION_URL" -c 'UPDATE "SystemSecurityEvidence" SET "reasonCode"='"'"'INVALID_SIGNATURE'"'"' WHERE id='"'"'22222222-2222-4222-8222-222222222222'"'"''
-          ! psql -v ON_ERROR_STOP=1 "$RESTORE_AUDIT_READER_URL" -c 'DELETE FROM "AuditEvent" WHERE id='"'"'33333333-3333-4333-8333-333333333333'"'"''
-          ! psql -v ON_ERROR_STOP=1 "$RESTORE_SECURITY_READER_URL" -c 'DELETE FROM "SystemSecurityEvidence" WHERE id='"'"'22222222-2222-4222-8222-222222222222'"'"''
-          ! psql -v ON_ERROR_STOP=1 "$RESTORE_BACKUP_URL" -c 'UPDATE "ExecutiveIdentity" SET "displayName"='"'"'forbidden'"'"' WHERE id='"'"'restore-founder'"'"''
-          ! psql -v ON_ERROR_STOP=1 "$RESTORE_BACKUP_URL" -c 'CREATE TABLE forbidden_restore_backup(id int)'
+          psql -v ON_ERROR_STOP=1 "$RESTORE_ADMIN_URL" -f packages/database/security/bootstrap-roles.sql
+          psql -v ON_ERROR_STOP=1 "$RESTORE_ADMIN_URL" -f packages/database/security/bootstrap-identity-admin-role.sql
+          psql -v ON_ERROR_STOP=1 "$RESTORE_ADMIN_URL" -f packages/database/security/bootstrap-security-reader-role.sql
+          psql -v ON_ERROR_STOP=1 "$RESTORE_ADMIN_URL" -f packages/database/security/bootstrap-backup-role.sql
+          psql -v ON_ERROR_STOP=1 "$RESTORE_DATABASE_URL" -f packages/database/security/reapply-restored-grants.sql
+          assert_equals() {
+            assertion_name="$1"
+            expected="$2"
+            actual="$3"
+            if [ "$actual" != "$expected" ]; then
+              printf 'assertion failed: %s expected=%s actual=%s\n' "$assertion_name" "$expected" "$actual" >&2
+              return 1
+            fi
+            printf 'assertion passed: %s\n' "$assertion_name"
+          }
+          assert_archive_contains() {
+            assertion_name="$1"
+            fixture_id="$2"
+            if ! grep -Fq "$fixture_id" /tmp/rems-ci-data.sql; then
+              printf 'assertion failed: %s expected=present actual=absent\n' "$assertion_name" >&2
+              return 1
+            fi
+            printf 'assertion passed: %s\n' "$assertion_name"
+          }
+          assert_files_equal() {
+            assertion_name="$1"
+            expected_file="$2"
+            actual_file="$3"
+            if ! cmp --silent "$expected_file" "$actual_file"; then
+              printf 'assertion failed: %s expected=matching actual=different\n' "$assertion_name" >&2
+              return 1
+            fi
+            printf 'assertion passed: %s\n' "$assertion_name"
+          }
+          assert_sql_denied() {
+            assertion_name="$1"
+            connection_url="$2"
+            statement="$3"
+            if psql -v ON_ERROR_STOP=1 "$connection_url" -c "$statement" > /dev/null 2>&1; then
+              printf 'assertion failed: %s expected=denied actual=allowed\n' "$assertion_name" >&2
+              return 1
+            fi
+            printf 'assertion passed: %s\n' "$assertion_name"
+          }
+          pg_restore --data-only --file=/tmp/rems-ci-data.sql "$BACKUP_FILE"
+          assert_archive_contains archive_executive_identity restore-founder
+          assert_archive_contains archive_organization_unit restore-org
+          assert_archive_contains archive_membership restore-membership
+          assert_archive_contains archive_external_identity_link 11111111-1111-4111-8111-111111111111
+          assert_archive_contains archive_audit_event 33333333-3333-4333-8333-333333333333
+          assert_archive_contains archive_system_security_evidence 22222222-2222-4222-8222-222222222222
+          rm -f /tmp/rems-ci-data.sql
+          assert_equals restored_executive_identity 1 "$(psql -v ON_ERROR_STOP=1 "$RESTORE_DATABASE_URL" -Atc 'SELECT count(*) FROM "ExecutiveIdentity" WHERE id='"'"'restore-founder'"'"'')"
+          assert_equals restored_organization_unit 1 "$(psql -v ON_ERROR_STOP=1 "$RESTORE_DATABASE_URL" -Atc 'SELECT count(*) FROM "OrganizationUnit" WHERE id='"'"'restore-org'"'"'')"
+          assert_equals restored_membership 1 "$(psql -v ON_ERROR_STOP=1 "$RESTORE_DATABASE_URL" -Atc 'SELECT count(*) FROM "Membership" WHERE id='"'"'restore-membership'"'"' AND "executiveId"='"'"'restore-founder'"'"' AND "unitId"='"'"'restore-org'"'"' AND role='"'"'FOUNDER'"'"'')"
+          assert_equals restored_external_identity_link 1 "$(psql -v ON_ERROR_STOP=1 "$RESTORE_DATABASE_URL" -Atc 'SELECT count(*) FROM "ExternalIdentityLink" WHERE subject='"'"'restore-subject'"'"'')"
+          assert_equals restored_audit_event 1 "$(psql -v ON_ERROR_STOP=1 "$RESTORE_DATABASE_URL" -Atc 'SELECT count(*) FROM "AuditEvent" WHERE id='"'"'33333333-3333-4333-8333-333333333333'"'"'')"
+          assert_equals restored_system_security_evidence 1 "$(psql -v ON_ERROR_STOP=1 "$RESTORE_DATABASE_URL" -Atc 'SELECT count(*) FROM "SystemSecurityEvidence" WHERE "correlationId"='"'"'restore-verification'"'"'')"
+          assert_equals restored_migration_ownership 6 "$(psql -v ON_ERROR_STOP=1 "$RESTORE_DATABASE_URL" -Atc "SELECT count(*) FROM pg_tables WHERE schemaname='public' AND tableowner='rems_migration_owner' AND tablename IN ('ExecutiveIdentity','OrganizationUnit','Membership','ExternalIdentityLink','AuditEvent','SystemSecurityEvidence')")"
+          assert_equals application_executive_select t "$(psql -v ON_ERROR_STOP=1 "$RESTORE_DATABASE_URL" -Atc "SELECT has_table_privilege('rems_application','public.\"ExecutiveIdentity\"','SELECT')")"
+          assert_equals application_audit_insert t "$(psql -v ON_ERROR_STOP=1 "$RESTORE_DATABASE_URL" -Atc "SELECT has_table_privilege('rems_application','public.\"AuditEvent\"','INSERT')")"
+          assert_equals application_audit_update_denied f "$(psql -v ON_ERROR_STOP=1 "$RESTORE_DATABASE_URL" -Atc "SELECT has_table_privilege('rems_application','public.\"AuditEvent\"','UPDATE')")"
+          assert_equals audit_reader_audit_select t "$(psql -v ON_ERROR_STOP=1 "$RESTORE_DATABASE_URL" -Atc "SELECT has_table_privilege('rems_audit_reader','public.\"AuditEvent\"','SELECT')")"
+          assert_equals security_reader_evidence_select t "$(psql -v ON_ERROR_STOP=1 "$RESTORE_DATABASE_URL" -Atc "SELECT has_table_privilege('rems_security_reader','public.\"SystemSecurityEvidence\"','SELECT')")"
+          assert_equals backup_link_select t "$(psql -v ON_ERROR_STOP=1 "$RESTORE_DATABASE_URL" -Atc "SELECT has_table_privilege('rems_backup','public.\"ExternalIdentityLink\"','SELECT')")"
+          psql -v ON_ERROR_STOP=1 "$RESTORE_ADMIN_URL" -At -f packages/database/security/inspect-security-state.sql > /tmp/restored-security-state
+          assert_files_equal restored_security_state /tmp/fresh-security-state /tmp/restored-security-state
+          rm -f /tmp/restored-security-state
+          assert_equals application_record_read 1 "$(psql -v ON_ERROR_STOP=1 "$RESTORE_APPLICATION_URL" -Atc 'SELECT count(*) FROM "ExecutiveIdentity" WHERE id='"'"'restore-founder'"'"'')"
+          assert_equals audit_reader_record_read 1 "$(psql -v ON_ERROR_STOP=1 "$RESTORE_AUDIT_READER_URL" -Atc 'SELECT count(*) FROM "AuditEvent" WHERE id='"'"'33333333-3333-4333-8333-333333333333'"'"'')"
+          assert_equals security_reader_record_read 1 "$(psql -v ON_ERROR_STOP=1 "$RESTORE_SECURITY_READER_URL" -Atc 'SELECT count(*) FROM "SystemSecurityEvidence" WHERE id='"'"'22222222-2222-4222-8222-222222222222'"'"'')"
+          assert_equals backup_record_read 1 "$(psql -v ON_ERROR_STOP=1 "$RESTORE_BACKUP_URL" -Atc 'SELECT count(*) FROM "ExternalIdentityLink" WHERE id='"'"'11111111-1111-4111-8111-111111111111'"'"'')"
+          assert_sql_denied application_audit_update "$RESTORE_APPLICATION_URL" 'UPDATE "AuditEvent" SET type='"'"'forbidden'"'"' WHERE id='"'"'33333333-3333-4333-8333-333333333333'"'"''
+          assert_sql_denied application_audit_truncate "$RESTORE_APPLICATION_URL" 'TRUNCATE TABLE "AuditEvent"'
+          assert_sql_denied application_security_evidence_update "$RESTORE_APPLICATION_URL" 'UPDATE "SystemSecurityEvidence" SET "reasonCode"='"'"'INVALID_SIGNATURE'"'"' WHERE id='"'"'22222222-2222-4222-8222-222222222222'"'"''
+          assert_sql_denied audit_reader_audit_delete "$RESTORE_AUDIT_READER_URL" 'DELETE FROM "AuditEvent" WHERE id='"'"'33333333-3333-4333-8333-333333333333'"'"''
+          assert_sql_denied security_reader_evidence_delete "$RESTORE_SECURITY_READER_URL" 'DELETE FROM "SystemSecurityEvidence" WHERE id='"'"'22222222-2222-4222-8222-222222222222'"'"''
+          assert_sql_denied backup_identity_update "$RESTORE_BACKUP_URL" 'UPDATE "ExecutiveIdentity" SET "displayName"='"'"'forbidden'"'"' WHERE id='"'"'restore-founder'"'"''
+          assert_sql_denied backup_schema_create "$RESTORE_BACKUP_URL" 'CREATE TABLE forbidden_restore_backup(id int)'
           rm -f "$BACKUP_FILE"
       - name: Lock down one-time Founder bootstrap login
         run: |
