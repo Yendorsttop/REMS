@@ -2,6 +2,14 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 const blueprint = readFileSync(new URL('../render.yaml', import.meta.url), 'utf8');
+const resources = blueprint
+  .split('\n')
+  .reduce<string[][]>((declarations, line) => {
+    if (line.startsWith('  - ')) declarations.push([line]);
+    else declarations.at(-1)?.push(line);
+    return declarations;
+  }, [])
+  .map((lines) => lines.join('\n'));
 
 describe('controlled staging declaration', () => {
   it('declares isolated API, web, release, and paid database resources', () => {
@@ -20,6 +28,14 @@ describe('controlled staging declaration', () => {
       expect(blueprint).toContain(`value: ${target}`);
     expect(blueprint.match(/autoDeploy: false/g)).toHaveLength(3);
     expect(blueprint).toMatch(/name: rems-staging-release[\s\S]*numInstances: 0/);
+  });
+
+  it('pins every resource to the Founder-approved Oregon region', () => {
+    expect(resources).toHaveLength(4);
+    for (const resource of resources) {
+      expect(resource.match(/^[ ]{4}region: oregon$/gm)).toHaveLength(1);
+      expect(resource).not.toMatch(/^[ ]{4}region: (?!oregon$).+/m);
+    }
   });
 
   it('keeps credentials externally injected and out of web', () => {
