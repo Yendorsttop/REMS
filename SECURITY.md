@@ -1,5 +1,10 @@
 # Security Policy
 
+Material authentication rejections use bounded evidence codes and correlation identifiers. Evidence
+must never contain tokens, authorization headers, passwords, secrets, complete claims, email, or
+arbitrary request data. An evidence-write failure never permits authentication. Production monitoring,
+retention, alerting, and incident response remain future Founder decisions.
+
 Report vulnerabilities privately to the repository maintainers; do not open a public exploit report. Never commit credentials, tokens, personal data, production secrets, or fabricated organizational data. Use environment injection and secret managers in approved deployments. Production OIDC verification remains pending. The actor-header development seam must not be exposed as production authentication.
 
 ## PostgreSQL authority

@@ -30,6 +30,7 @@ import {
   PrismaService,
   PrismaTransactionContext,
   PrismaExternalIdentityResolver,
+  PrismaSecurityEvidencePort,
 } from '@rems/database';
 import { OidcAuthenticationGuard, OidcTokenVerifier, type AuthenticatedRequest } from './auth.js';
 class CreateIdentityDto {
@@ -129,6 +130,8 @@ export class Red001Controller {
     PrismaAuthorizationPort,
     PrismaExternalIdentityResolver,
     OidcTokenVerifier,
+    PrismaSecurityEvidencePort,
+    { provide: 'SecurityEvidencePort', useExisting: PrismaSecurityEvidencePort },
     { provide: APP_GUARD, useClass: OidcAuthenticationGuard },
     Red001Facade,
   ],

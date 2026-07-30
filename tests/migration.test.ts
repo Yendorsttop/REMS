@@ -31,4 +31,16 @@ describe('RED-001 migration artifact', () => {
     expect(sql).not.toMatch(/OWNER TO rems_identity_admin/);
     expect(sql).not.toMatch(/OWNER TO rems_founder_bootstrap/);
   });
+
+  it('adds constrained actor-free FIP-005F evidence without changing prior migrations', () => {
+    const sql = readFileSync(
+      'packages/database/prisma/migrations/20260730030000_fip_005f_security_evidence/migration.sql',
+      'utf8',
+    );
+    expect(sql).toContain('CREATE TABLE "SystemSecurityEvidence"');
+    expect(sql).toContain('OWNER TO rems_migration_owner');
+    expect(sql).toContain('GRANT INSERT ON TABLE "SystemSecurityEvidence" TO rems_application');
+    expect(sql).toContain('REVOKE SELECT, UPDATE, DELETE, TRUNCATE');
+    expect(sql).not.toMatch(/"(actorId|email|token|claims|authorization)"\s+/i);
+  });
 });

@@ -1,5 +1,9 @@
 # REP Entertainment Management System (REMS)
 
+FIP-005F adds minimized append-only system-security evidence for material authentication rejections.
+It is separate from RED-001 audit, has no fabricated executive actor, and keeps responses generic.
+See [ADR 0007](docs/adr/0007-append-only-system-security-evidence.md).
+
 REMS is a Founder-governed modular monolith. FIP-005 establishes the RED-001 repository foundation: the exclusive authority for executive identities, organizational hierarchy, memberships, reporting relationships, roles, permissions, business authorization context, and identity-based organizational participation.
 
 ## Workspace

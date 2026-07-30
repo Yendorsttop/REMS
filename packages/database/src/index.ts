@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import type { OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
@@ -20,6 +21,35 @@ import {
 } from '@rems/red-001';
 
 export const RED_001_DATABASE_BOUNDARY = 'red-001' as const;
+export const SECURITY_EVIDENCE_BOUNDARY = 'system-security-evidence' as const;
+export const SECURITY_REASON_CODES = [
+  'MISSING_BEARER_TOKEN',
+  'MALFORMED_TOKEN',
+  'INVALID_SIGNATURE',
+  'UNKNOWN_SIGNING_KEY',
+  'DISALLOWED_ALGORITHM',
+  'WRONG_ISSUER',
+  'WRONG_AUDIENCE',
+  'EXPIRED_TOKEN',
+  'FUTURE_NOT_BEFORE',
+  'MISSING_SUBJECT',
+  'UNKNOWN_OR_UNLINKED_SUBJECT',
+  'INACTIVE_LINK',
+  'INACTIVE_EXECUTIVE_IDENTITY',
+  'SUSPENDED_EXECUTIVE_IDENTITY',
+  'PROVIDER_AUTHORITY_ELEVATION',
+  'VERIFICATION_NOT_CONFIGURED',
+  'OTHER_GOVERNED_REJECTION',
+] as const;
+export type SecurityReasonCode = (typeof SECURITY_REASON_CODES)[number];
+export type SecurityEvidence = Readonly<{
+  eventType: 'AUTHENTICATION_REJECTED' | 'AUTHORITY_ELEVATION_REJECTED';
+  reasonCode: SecurityReasonCode;
+  correlationId: string;
+}>;
+export interface SecurityEvidencePort {
+  append(event: SecurityEvidence): Promise<void>;
+}
 type DatabaseClient = PrismaClient | Prisma.TransactionClient;
 type IdentityRecord = {
   id: string;
@@ -197,6 +227,30 @@ export class PrismaAuditEventPort implements AuditEventPort {
 }
 
 @Injectable()
+export class PrismaSecurityEvidencePort implements SecurityEvidencePort {
+  constructor(private readonly prisma: PrismaService) {}
+  async append(event: SecurityEvidence): Promise<void> {
+    const id = randomUUID();
+    const occurredAt = new Date();
+    const outcome = 'DENIED' as const;
+    if (!['AUTHENTICATION_REJECTED', 'AUTHORITY_ELEVATION_REJECTED'].includes(event.eventType))
+      throw new Error('Invalid security evidence event type');
+    if (!SECURITY_REASON_CODES.includes(event.reasonCode))
+      throw new Error('Invalid security evidence reason code');
+    if (!/^[A-Za-z0-9._:-]{1,128}$/.test(event.correlationId))
+      throw new Error('Invalid security evidence correlation identifier');
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id))
+      throw new Error('Invalid security evidence identifier');
+    if (Number.isNaN(occurredAt.getTime())) throw new Error('Invalid security evidence timestamp');
+    await this.prisma.$executeRaw`
+      INSERT INTO "SystemSecurityEvidence"
+        ("id", "occurredAt", "eventType", "outcome", "reasonCode", "correlationId")
+      VALUES
+        (${id}::uuid, ${occurredAt}, ${event.eventType}, ${outcome}, ${event.reasonCode}, ${event.correlationId})`;
+  }
+}
+
+@Injectable()
 export class PrismaAuthorizationPort implements AuthorizationPort {
   constructor(private readonly organizations: PrismaOrganizationRepository) {}
   async contextFor(actorId: string): Promise<AuthorizationContext> {
@@ -217,5 +271,31 @@ export class PrismaExternalIdentityResolver {
         AND link.active = true AND executive.status = 'ACTIVE'
       LIMIT 1`;
     return links[0]?.executiveId ?? null;
+  }
+  async resolveForAuthentication(
+    issuer: string,
+    subject: string,
+  ): Promise<
+    | { executiveId: string }
+    | {
+        reason:
+          | 'UNKNOWN_OR_UNLINKED_SUBJECT'
+          | 'INACTIVE_LINK'
+          | 'INACTIVE_EXECUTIVE_IDENTITY'
+          | 'SUSPENDED_EXECUTIVE_IDENTITY';
+      }
+  > {
+    const rows = await this.context.client.$queryRaw<
+      Array<{ executiveId: string; active: boolean; status: string }>
+    >`
+      SELECT link."executiveId", link.active, executive.status::text
+      FROM "ExternalIdentityLink" link JOIN "ExecutiveIdentity" executive ON executive.id = link."executiveId"
+      WHERE link.issuer = ${issuer} AND link.subject = ${subject} LIMIT 1`;
+    const row = rows[0];
+    if (!row) return { reason: 'UNKNOWN_OR_UNLINKED_SUBJECT' };
+    if (!row.active) return { reason: 'INACTIVE_LINK' };
+    if (row.status === 'SUSPENDED') return { reason: 'SUSPENDED_EXECUTIVE_IDENTITY' };
+    if (row.status !== 'ACTIVE') return { reason: 'INACTIVE_EXECUTIVE_IDENTITY' };
+    return { executiveId: row.executiveId };
   }
 }
