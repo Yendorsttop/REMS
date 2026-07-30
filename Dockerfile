@@ -4,13 +4,20 @@ WORKDIR /app
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json tsconfig*.json .prettierrc.json ./
 COPY apps ./apps
 COPY packages ./packages
-RUN pnpm install --frozen-lockfile \
+RUN find apps packages -type f -name '*.tsbuildinfo' -exec rm -f {} + \
+ && find apps packages -type d \( -name dist -o -name .next -o -name .cache \) -prune -exec rm -rf {} + \
+ && pnpm install --frozen-lockfile \
  && pnpm --filter @rems/database prisma:generate \
  && pnpm --filter @rems/config build \
  && pnpm --filter @rems/contracts build \
  && pnpm --filter @rems/observability build \
  && pnpm --filter @rems/red-001 build \
  && pnpm --filter @rems/database build \
+ && for package in config contracts observability red-001 database; do \
+      test -s "packages/$package/dist/index.js" \
+      && test -s "packages/$package/dist/index.d.ts" \
+      || { echo "missing required workspace output: @rems/$package/dist/index.js or index.d.ts" >&2; exit 1; }; \
+    done \
  && pnpm --filter @rems/api build \
  && pnpm --filter @rems/web build \
  && find /app -type f \( -name '*.test.ts' -o -name '*.map' \) -delete \

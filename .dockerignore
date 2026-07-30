@@ -5,6 +5,9 @@
 !.env.example
 **/node_modules
 **/dist
+**/.next
+**/.cache
+**/*.tsbuildinfo
 **/*.test.ts
 **/*.spec.ts
 coverage
