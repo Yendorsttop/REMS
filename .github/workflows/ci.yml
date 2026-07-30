@@ -238,13 +238,20 @@ jobs:
           test "$(docker image inspect rems-web:${{ github.sha }} --format '{{.Config.User}}')" = node
           test -z "$(docker run --rm rems-api:${{ github.sha }} sh -c 'find /app -name .env -o -name .git -o -name "*.test.ts" | head -1')"
           docker run --rm --entrypoint sh rems-api:${{ github.sha }} -c '
-            for pattern in "vitest@*" "vite@*" "typescript@*" "@esbuild+*" "esbuild@*" "sharp@*" "postcss@*" "sigstore@*" "tar@*"; do
+            for pattern in "vitest@*" "vite@*" "typescript@*" "@esbuild+*" "esbuild@*" "sharp@*" "postcss@*" "sigstore@*" "tar@*" "browserslist@*" "acorn@*" "webpack@*" "prettier@*" "prisma@*"; do
               if find /app/node_modules/.pnpm -mindepth 1 -maxdepth 1 -type d -name "$pattern" | grep -q .; then
                 echo "prohibited development package present: $pattern" >&2
                 exit 1
               fi
             done
             test -z "$(find /app -type f \( -name "*.ts" -o -name "*.map" \) -print -quit)"
+            prisma_client="$(find /app/node_modules/.pnpm -path "*/node_modules/.prisma/client" -type d -print -quit)"
+            test -n "$prisma_client"
+            test ! -e "$prisma_client/client"
+            test -s "$prisma_client/schema.prisma"
+            test -s "$prisma_client/default.js"
+            test -s "$prisma_client/index.js"
+            test -n "$(find "$prisma_client" -maxdepth 1 -type f -name "libquery_engine-*.so.node" -print -quit)"
             node -e "Promise.all([import('"'"'@rems/config'"'"'),import('"'"'@rems/database'"'"'),import('"'"'@rems/observability'"'"'),import('"'"'@rems/red-001'"'"')]).then(([,database])=>new database.PrismaService())"
           '
           api_container="$(docker run --detach --network host \

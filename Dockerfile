@@ -28,7 +28,23 @@ RUN find apps packages -type f -name '*.tsbuildinfo' -exec rm -f {} + \
  && test -n "$source_prisma_client" -a -n "$target_prisma_package" \
  && target_prisma_modules="$(dirname "$(dirname "$target_prisma_package")")" \
  && mkdir -p "$target_prisma_modules/.prisma" \
- && cp -R "$source_prisma_client" "$target_prisma_modules/.prisma/client" \
+ && staged_prisma_client="$target_prisma_modules/.prisma/client.generated" \
+ && rm -rf "$staged_prisma_client" \
+ && cp -R "$source_prisma_client" "$staged_prisma_client" \
+ && test -s "$staged_prisma_client/schema.prisma" \
+ && test -s "$staged_prisma_client/default.js" \
+ && test -s "$staged_prisma_client/index.js" \
+ && test -n "$(find "$staged_prisma_client" -maxdepth 1 -type f -name 'libquery_engine-*.so.node' -print -quit)" \
+ && rm -rf "$target_prisma_modules/.prisma/client" \
+ && mv "$staged_prisma_client" "$target_prisma_modules/.prisma/client" \
+ && test ! -e "$target_prisma_modules/.prisma/client/client" \
+ && test -s "$target_prisma_modules/.prisma/client/schema.prisma" \
+ && test -s "$target_prisma_modules/.prisma/client/default.js" \
+ && test -n "$(find "$target_prisma_modules/.prisma/client" -maxdepth 1 -type f -name 'libquery_engine-*.so.node' -print -quit)" \
+ && for pattern in typescript browserslist acorn webpack prettier prisma; do \
+      test -z "$(find /prod/api/node_modules/.pnpm -mindepth 1 -maxdepth 1 -type d -name "$pattern@*" -print -quit)" \
+      || { echo "prohibited build package present in API deployment: $pattern" >&2; exit 1; }; \
+    done \
  && find /prod/api -type f \( -name '*.map' -o -name '*.ts' \) -delete \
  && test -s /prod/api/dist/main.js \
  && cd /prod/api \
