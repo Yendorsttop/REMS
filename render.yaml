@@ -1,0 +1,66 @@
+# FIP-005H repository declaration only. Applying this Blueprint provisions paid
+# staging resources and therefore requires separate Founder approval.
+databases:
+  - name: rems-staging-postgresql
+    databaseName: rems_staging
+    plan: basic-256mb
+
+services:
+  - type: web
+    name: rems-staging-api
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health/ready
+    autoDeploy: false
+    envVars:
+      - key: REMS_TARGET
+        value: api
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: TRUSTED_PROXY
+        value: '1'
+      - key: DATABASE_URL
+        sync: false
+      - key: OIDC_ISSUER
+        sync: false
+      - key: OIDC_AUDIENCE
+        sync: false
+      - key: OIDC_ALLOWED_ALGORITHMS
+        value: RS256
+
+  - type: web
+    name: rems-staging-web
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    autoDeploy: false
+    envVars:
+      - key: REMS_TARGET
+        value: web
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_REMS_API_ORIGIN
+        sync: false
+
+  # This is a deliberately suspended, manual release executor, not a runtime
+  # worker. Keep scaled to zero except for one observed migration execution.
+  - type: worker
+    name: rems-staging-release
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    autoDeploy: false
+    numInstances: 0
+    envVars:
+      - key: REMS_TARGET
+        value: migration
+      - key: NODE_ENV
+        value: production
+      - key: MIGRATION_DATABASE_URL
+        sync: false

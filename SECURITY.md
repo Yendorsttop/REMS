@@ -34,3 +34,19 @@ The CLI never logs tokens or issuer/subject values. Lifecycle authorization come
 Production validation permits only `rems_application` in the API database URL and never prints the URL. Migration, Founder bootstrap, identity administration, readers, backup, restore, and emergency credentials belong only to their controlled processes; web receives none. `rems_backup` is a sensitive-data reader without write, create, ownership, runtime, or restore authority and requires independently governed custody.
 
 Application logs are structured and correlated using a generated or bounded caller identifier. Request logging excludes headers and bodies; authorization, cookies, bearer tokens, claims, database URLs, passwords, secrets, and identity-link values are redacted or never supplied. Health responses contain no configuration or diagnostic detail. SBOMs and unsuppressed high/critical scan findings require human review; even a clean scan does not prove absence of vulnerabilities.
+
+## Controlled staging boundary
+
+The Render declaration is manual and fail-closed: automatic deployments are off; release migration
+is normally suspended; database credentials use dashboard injection without defaults; web receives
+none. API and release authority must remain `rems_application` and `rems_migration_owner`,
+respectively. Founder-bootstrap, identity-admin, readers, backup, restoration, owner, and emergency
+credentials are prohibited from ordinary services. Generated provider-owner connections never become
+runtime settings.
+
+Staging Auth0 must be tenant-isolated, HTTPS, exact-origin, asymmetrically signed, and MFA-protected
+for the synthetic Founder and administrators. Provider roles never elevate authority and only RED-001
+may link exact issuer/subject. Better Stack checks only minimal live/ready responses; alert payloads
+exclude secrets, tokens, claims, links, and records. Backups are encrypted before external transfer
+and restored only to a separately approved empty database. Operational secrets and evidence remain
+outside Git. See the FIP-005H runbook for stop conditions and teardown.

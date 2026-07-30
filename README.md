@@ -4,6 +4,11 @@ FIP-005F adds minimized append-only system-security evidence for material authen
 It is separate from RED-001 audit, has no fabricated executive actor, and keeps responses generic.
 See [ADR 0007](docs/adr/0007-append-only-system-security-evidence.md).
 
+FIP-005H adds a Founder-approved **staging preparation** declaration for Render, a controlled
+synthetic-data runbook, and fail-closed external-evidence templates. It does not deploy or provision
+anything. See [the staging runbook](docs/operations/controlled-staging-runbook.md) and
+[ADR 0009](docs/adr/0009-controlled-render-staging.md).
+
 REMS is a Founder-governed modular monolith. FIP-005 establishes the RED-001 repository foundation: the exclusive authority for executive identities, organizational hierarchy, memberships, reporting relationships, roles, permissions, business authorization context, and identity-based organizational participation.
 
 ## Workspace
@@ -48,3 +53,21 @@ Release order is: (1) administrative role bootstraps, including the additive ide
 Build `api`, `web`, and `migration` Docker targets independently. They run as `node`; environment files, Git data, tests, caches, and dumps are excluded by `.dockerignore`. Backup uses `BACKUP_DATABASE_URL` for the custody-controlled, sensitive-data-reading `rems_backup` role and an absolute ephemeral `BACKUP_FILE`: `./scripts/operations/backup.sh`. Restoration uses a separately created empty database, `RESTORE_DATABASE_URL` for authorized migration/restoration authority, and `./scripts/operations/restore.sh`; afterward rerun additive administrative grants and inspect security state. Never use `rems_application` for either operation.
 
 Repository artifacts and disposable CI restoration/SBOM/scanning are readiness evidence, not production backup, deployment, recovery, vulnerability-free, or operational certification. Vendors, schedules, retention, recovery objectives, custody, alerting, monitoring, and actual deployment remain Founder decisions. See ADR 0008.
+
+## FIP-005H controlled staging preparation
+
+`render.yaml` declares separate paid PostgreSQL, API, web, and normally suspended release-migration
+resources. Automatic deployment is disabled. The API accepts only an externally injected
+`rems_application` URL, migration execution only an externally injected `rems_migration_owner` URL,
+and web no database credential. No resource has been applied and no provider credential is present.
+
+The runbook documents separate staging Auth0 with exact HTTPS boundaries and asymmetric signing,
+minimal Better Stack live/ready monitoring, optional staging-only Cloudflare DNS, encrypted logical
+backup/restoration, synthetic Founder establishment and immediate `NOLOGIN` lockdown, grant/state
+comparison, rollback, and teardown. Untouched or missing external evidence fails
+`verify-staging-evidence.sh`; the gate checks record shape, not truth or certification.
+
+Repository staging preparation is not a deployment. A successful staging deployment is not
+production certification. Production deployment remains separately Founder-controlled. Actual
+credentials, custody records, provider configuration, monitoring delivery, backup media, recovery
+performance, and operational evidence remain external.
