@@ -10,6 +10,7 @@ import {
   Patch,
   Post,
   Req,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import {
@@ -20,7 +21,7 @@ import {
   DocumentBuilder,
   SwaggerModule,
 } from '@nestjs/swagger';
-import type { INestApplication } from '@nestjs/common';
+import type { INestApplication, OnApplicationShutdown } from '@nestjs/common';
 import { DomainError, Red001Service } from '@rems/red-001';
 import {
   PrismaAuditEventPort,
@@ -44,6 +45,39 @@ class CreateUnitDto {
   @ApiProperty({ enum: ['ORGANIZATION', 'DEPARTMENT', 'TEAM'] }) kind!:
     'ORGANIZATION' | 'DEPARTMENT' | 'TEAM';
   @ApiProperty({ required: false }) parentId?: string;
+}
+@Injectable()
+export class RuntimeState implements OnApplicationShutdown {
+  private stopping = false;
+  beginShutdown() {
+    this.stopping = true;
+  }
+  isStopping() {
+    return this.stopping;
+  }
+  onApplicationShutdown() {
+    this.beginShutdown();
+  }
+}
+@Controller('health')
+export class HealthController {
+  constructor(
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(RuntimeState) private readonly state: RuntimeState,
+  ) {}
+  @Get('live') live() {
+    return { status: 'ok' };
+  }
+  @Get('ready') async ready() {
+    if (this.state.isStopping()) throw new ServiceUnavailableException({ status: 'unavailable' });
+    try {
+      await this.prisma.$queryRaw`SELECT 1`;
+    } catch {
+      throw new ServiceUnavailableException({ status: 'unavailable' });
+    }
+    if (this.state.isStopping()) throw new ServiceUnavailableException({ status: 'unavailable' });
+    return { status: 'ready' };
+  }
 }
 @Injectable()
 export class Red001Facade extends Red001Service {
@@ -120,9 +154,10 @@ export class Red001Controller {
   }
 }
 @Module({
-  controllers: [Red001Controller],
+  controllers: [Red001Controller, HealthController],
   providers: [
     PrismaService,
+    RuntimeState,
     PrismaTransactionContext,
     PrismaExecutiveIdentityRepository,
     PrismaOrganizationRepository,

@@ -5,6 +5,22 @@ export function createLogger(level = 'info'): Logger {
   return pino({
     level,
     base: { service: 'rems' },
-    redact: ['req.headers.authorization', '*.password', '*.token'],
+    redact: {
+      paths: [
+        'req.headers.authorization',
+        'req.headers.cookie',
+        'authorization',
+        'cookie',
+        '*.authorization',
+        '*.cookie',
+        '*.password',
+        '*.token',
+        '*.secret',
+        '*.claims',
+        '*.databaseUrl',
+        'DATABASE_URL',
+      ],
+      censor: '[REDACTED]',
+    },
   });
 }

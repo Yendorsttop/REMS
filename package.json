@@ -13,6 +13,11 @@
     "test:e2e": "playwright test",
     "clean": "find . -name dist -type d -prune -exec rm -rf {} +"
   },
+  "pnpm": {
+    "overrides": {
+      "js-yaml": "5.2.2"
+    }
+  },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
     "@playwright/test": "^1.49.1",

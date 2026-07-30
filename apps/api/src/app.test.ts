@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import type { INestApplication } from '@nestjs/common';
-import { AppModule, configureOpenApi } from './app.js';
+import { AppModule, configureOpenApi, RuntimeState } from './app.js';
 import { Red001Facade } from './app.js';
 import { Red001Service } from '@rems/red-001';
 import { PrismaExternalIdentityResolver, PrismaService } from '@rems/database';
@@ -33,7 +33,7 @@ describe('RED-001 REST API', () => {
         .overrideProvider(Red001Facade)
         .useValue(service)
         .overrideProvider(PrismaService)
-        .useValue({})
+        .useValue({ $queryRaw: async () => [{ '?column?': 1 }] })
         .overrideProvider(OidcTokenVerifier)
         .useValue({ verify: async () => ({ issuer: 'https://issuer.test', subject: 'founder' }) })
         .overrideProvider(PrismaExternalIdentityResolver)
@@ -62,6 +62,23 @@ describe('RED-001 REST API', () => {
     const spec = await request(app.getHttpServer()).get('/openapi-json').expect(200);
     expect(spec.body.paths['/v1/red-001/identities']).toBeDefined();
     await request(app.getHttpServer()).get('/v1/red-001/identities').expect(401);
+    await app.close();
+  });
+  it('keeps liveness dependency-free and reports healthy readiness', async () => {
+    expect((await request(app.getHttpServer()).get('/health/live').expect(200)).body).toEqual({
+      status: 'ok',
+    });
+    expect((await request(app.getHttpServer()).get('/health/ready').expect(200)).body).toEqual({
+      status: 'ready',
+    });
+    await app.close();
+  });
+  it('withdraws readiness before graceful shutdown', async () => {
+    app.get(RuntimeState).beginShutdown();
+    await request(app.getHttpServer()).get('/health/live').expect(200);
+    expect((await request(app.getHttpServer()).get('/health/ready').expect(503)).body).toEqual({
+      status: 'unavailable',
+    });
     await app.close();
   });
 });

@@ -7,7 +7,7 @@ ORDER BY tablename;
 
 SELECT 'privilege', role_name, table_name, privilege,
        has_table_privilege(role_name, format('public.%I', table_name), privilege)
-FROM unnest(ARRAY['rems_application', 'rems_audit_reader', 'rems_founder_bootstrap', 'rems_identity_admin', 'rems_security_reader']) AS role_name,
+FROM unnest(ARRAY['rems_application', 'rems_audit_reader', 'rems_founder_bootstrap', 'rems_identity_admin', 'rems_security_reader', 'rems_backup']) AS role_name,
      unnest(ARRAY['ExecutiveIdentity', 'OrganizationUnit', 'Membership', 'PermissionAssignment', 'AuditEvent', 'ExternalIdentityLink', 'SystemSecurityEvidence']) AS table_name,
      unnest(ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER']) AS privilege
 ORDER BY role_name, table_name, privilege;
@@ -21,5 +21,5 @@ ORDER BY typname;
 SELECT 'schema', role_name,
        has_schema_privilege(role_name, 'public', 'USAGE'),
        has_schema_privilege(role_name, 'public', 'CREATE')
-FROM unnest(ARRAY['rems_application', 'rems_audit_reader', 'rems_founder_bootstrap', 'rems_identity_admin', 'rems_security_reader', 'rems_migration_owner']) AS role_name
+FROM unnest(ARRAY['rems_application', 'rems_audit_reader', 'rems_founder_bootstrap', 'rems_identity_admin', 'rems_security_reader', 'rems_backup', 'rems_migration_owner']) AS role_name
 ORDER BY role_name;

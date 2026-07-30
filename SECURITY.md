@@ -28,3 +28,9 @@ FIP-005E adds two roles through a separate additive bootstrap script. One-time `
 Keep `FOUNDER_BOOTSTRAP_DATABASE_URL` only in the one-time ceremony and `IDENTITY_ADMIN_DATABASE_URL` only in the ongoing controlled process; the API receives neither. Immediately after successful bootstrap, an authorized administrator runs `lockdown-founder-bootstrap-role.sql` to set `rems_founder_bootstrap NOLOGIN`. The ceremony does not attempt to disable its own connection. Operational procedures may terminate residual sessions and remove the role later under separate authorization.
 
 The CLI never logs tokens or issuer/subject values. Lifecycle authorization comes from verified OIDC issuer/subject resolution plus active RED-001 Founder state, never provider claims. Pre-authentication rejection cannot accurately populate the actor-required audit schema, so no actor is fabricated. Loss of the final usable Founder link is an emergency-recovery case excluded from this milestone.
+
+## Operational credential and logging boundaries
+
+Production validation permits only `rems_application` in the API database URL and never prints the URL. Migration, Founder bootstrap, identity administration, readers, backup, restore, and emergency credentials belong only to their controlled processes; web receives none. `rems_backup` is a sensitive-data reader without write, create, ownership, runtime, or restore authority and requires independently governed custody.
+
+Application logs are structured and correlated using a generated or bounded caller identifier. Request logging excludes headers and bodies; authorization, cookies, bearer tokens, claims, database URLs, passwords, secrets, and identity-link values are redacted or never supplied. Health responses contain no configuration or diagnostic detail. SBOMs and unsuppressed high/critical scan findings require human review; even a clean scan does not prove absence of vulnerabilities.

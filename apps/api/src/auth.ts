@@ -81,7 +81,12 @@ export class OidcAuthenticationGuard implements CanActivate {
   }
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
-    if (request.path === '/openapi-json' || request.path.startsWith('/openapi')) return true;
+    if (
+      request.path === '/openapi-json' ||
+      request.path.startsWith('/openapi') ||
+      request.path.startsWith('/health/')
+    )
+      return true;
     const authorization = request.header('authorization');
     const correlationId = this.correlation(request);
     if (!authorization?.startsWith('Bearer ') || authorization.length === 7)
