@@ -1,0 +1,141 @@
+import {
+  Body,
+  Controller,
+  Get,
+  HttpException,
+  Inject,
+  Injectable,
+  Module,
+  Param,
+  Patch,
+  Post,
+  Req,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiProperty,
+  ApiTags,
+  DocumentBuilder,
+  SwaggerModule,
+} from '@nestjs/swagger';
+import type { INestApplication } from '@nestjs/common';
+import type { Request } from 'express';
+import { DomainError, Red001Service } from '@rems/red-001';
+import {
+  InMemoryAuditEventPort,
+  InMemoryExecutiveIdentityRepository,
+  InMemoryOrganizationRepository,
+  StaticAuthorizationPort,
+} from '@rems/testing';
+class CreateIdentityDto {
+  @ApiProperty({ example: 'synthetic-executive' }) id!: string;
+  @ApiProperty({ example: 'Synthetic Executive' }) displayName!: string;
+  @ApiProperty({ required: false }) externalSubject?: string;
+}
+class CreateUnitDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() name!: string;
+  @ApiProperty({ enum: ['ORGANIZATION', 'DEPARTMENT', 'TEAM'] }) kind!:
+    'ORGANIZATION' | 'DEPARTMENT' | 'TEAM';
+  @ApiProperty({ required: false }) parentId?: string;
+}
+const permissions = new Set([
+  'red001.identity.create',
+  'red001.identity.lifecycle',
+  'red001.identity.read',
+  'red001.organization.manage',
+  'red001.membership.manage',
+  'red001.authorization.manage',
+]);
+@Injectable()
+export class Red001Facade extends Red001Service {
+  constructor() {
+    super(
+      new InMemoryExecutiveIdentityRepository(),
+      new InMemoryOrganizationRepository(),
+      new InMemoryAuditEventPort(),
+      new StaticAuthorizationPort(new Map([['synthetic-founder', permissions]])),
+    );
+  }
+}
+type ActorRequest = Request & { headers: { 'x-actor-id'?: string } };
+@ApiTags('RED-001')
+@ApiBearerAuth()
+@Controller('v1/red-001')
+export class Red001Controller {
+  constructor(@Inject(Red001Facade) private readonly service: Red001Facade) {}
+  private actor(req: ActorRequest): string {
+    const actor = req.headers['x-actor-id'];
+    if (!actor) throw new HttpException('Authenticated actor context is required', 401);
+    return actor;
+  }
+  private async execute<T>(operation: () => Promise<T>): Promise<T> {
+    try {
+      return await operation();
+    } catch (error) {
+      if (error instanceof DomainError)
+        throw new HttpException(
+          error.message,
+          error.message.startsWith('Missing permission') ? 403 : 400,
+        );
+      throw error;
+    }
+  }
+  @Get('identities') @ApiOperation({ summary: 'List executive identities' }) async list(
+    @Req() req: ActorRequest,
+  ) {
+    return (await this.execute(() => this.service.listIdentities(this.actor(req)))).map(
+      (x) => x.snapshot,
+    );
+  }
+  @Post('identities') @ApiOperation({ summary: 'Create an executive identity' }) async create(
+    @Req() req: ActorRequest,
+    @Body() body: CreateIdentityDto,
+  ) {
+    return (await this.execute(() => this.service.createIdentity(this.actor(req), body))).snapshot;
+  }
+  @Patch('identities/:id/:transition')
+  @ApiOperation({ summary: 'Apply an identity lifecycle transition' })
+  async transition(
+    @Req() req: ActorRequest,
+    @Param('id') id: string,
+    @Param('transition') transition: string,
+  ) {
+    if (!['suspend', 'reactivate', 'deactivate'].includes(transition))
+      throw new HttpException('Unknown lifecycle transition', 400);
+    return (
+      await this.execute(() =>
+        this.service.transitionIdentity(
+          this.actor(req),
+          id,
+          transition as 'suspend' | 'reactivate' | 'deactivate',
+        ),
+      )
+    ).snapshot;
+  }
+  @Post('organization-units')
+  @ApiOperation({ summary: 'Create an organizational hierarchy unit' })
+  async unit(@Req() req: ActorRequest, @Body() body: CreateUnitDto) {
+    await this.execute(() => this.service.createUnit(this.actor(req), body));
+    return body;
+  }
+}
+@Module({ controllers: [Red001Controller], providers: [Red001Facade] })
+export class AppModule {}
+export function configureOpenApi(app: INestApplication) {
+  const config = new DocumentBuilder()
+    .setTitle('REMS RED-001 API')
+    .setDescription('Executive identity and organizational authority boundary')
+    .setVersion('0.1.0')
+    .addBearerAuth({
+      type: 'http',
+      scheme: 'bearer',
+      bearerFormat: 'OIDC JWT',
+      description: 'OIDC-compatible seam; production verification is not configured',
+    })
+    .build();
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('openapi', app, document);
+  return document;
+}

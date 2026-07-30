@@ -1,0 +1,11 @@
+import 'reflect-metadata';
+import { NestFactory } from '@nestjs/core';
+import { loadConfig } from '@rems/config';
+import { createLogger } from '@rems/observability';
+import { AppModule, configureOpenApi } from './app.js';
+const config = loadConfig();
+const logger = createLogger(config.logLevel);
+const app = await NestFactory.create(AppModule, { logger: ['error', 'warn', 'log'] });
+configureOpenApi(app);
+await app.listen(config.port);
+logger.info({ port: config.port }, 'REMS API listening');
