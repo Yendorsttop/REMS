@@ -1,0 +1,29 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "outDir": "dist",
+    "rootDir": "src",
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.ts"],
+  "references": [
+    {
+      "path": "../../packages/red-001/tsconfig.json"
+    },
+    {
+      "path": "../../packages/contracts/tsconfig.json"
+    },
+    {
+      "path": "../../packages/config/tsconfig.json"
+    },
+    {
+      "path": "../../packages/observability/tsconfig.json"
+    },
+    {
+      "path": "../../packages/testing/tsconfig.json"
+    }
+  ]
+}
