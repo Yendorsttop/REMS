@@ -52,14 +52,16 @@ CI restoration preserves representative RED-001, external-link, business-audit, 
 ## FIP-005H controlled staging preparation
 
 Repository evidence comprises a Render Blueprint declaring separate paid PostgreSQL, API, web, and
-manual suspended release resources; existing Docker-target selection; externally injected secret
+manual suspended release resources, each explicitly pinned to the Founder-approved Oregon region;
+existing Docker-target selection; externally injected secret
 boundaries; staging declaration tests; ADR 0009; a synthetic-only runbook; and external evidence
 templates with a fail-closed completeness gate. The existing mandatory unsuppressed HIGH/CRITICAL
 Trivy image scan and CycloneDX SBOM workflow remain unchanged.
 
 No Blueprint has been applied. No paid resource, tenant, monitor, DNS record, account, identity,
 credential, secret store, backup, restore target, or staging deployment was created. Consequently
-there is no observed deployment revision, migration result, ownership/grant state, health result,
+the region declaration is not evidence of provisioned regional placement, and there is no observed
+deployment revision, migration result, ownership/grant state, health result,
 OIDC result, alert delivery, backup media, recovery performance, vulnerability disposition, rollback
 result, custody record, or Founder operational review. Templates are not evidence, and their local
 shape gate does not authenticate an assertion.

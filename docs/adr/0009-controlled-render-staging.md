@@ -9,9 +9,9 @@ Founder-approved repository preparation; no staging resources have been provisio
 The staging declaration is a Render Blueprint with four separately governed resources: paid
 PostgreSQL, API, web, and a normally suspended manual release-migration executor. A non-secret
 `REMS_TARGET` selects the existing `api`, `web`, or `migration` Docker target. Automatic deployments
-are disabled. Region is deliberately omitted because a legally or operationally material region
-selection remains Founder-controlled. Applying the Blueprint, selecting the region, and incurring
-cost require a separate approval outside this repository change.
+are disabled. The Founder-approved staging region is Oregon, USA, expressed explicitly as `oregon`
+on every Blueprint resource rather than relying on Render's implicit default. Applying the Blueprint
+and incurring cost still require a separate approval outside this repository change.
 
 The API alone receives an externally injected `DATABASE_URL` whose PostgreSQL user is
 `rems_application`. The web has no database setting. The release executor alone receives
@@ -33,7 +33,8 @@ presence and review shape of redacted references and fails closed for absent or 
 
 ## Consequences and limitations
 
-The Blueprint is infrastructure declaration, not deployment evidence. Render administration,
+The Blueprint is infrastructure declaration, not deployment evidence. The region declaration records
+a decision but does not prove provisioning or regional placement. Render administration,
 credentials, custody records, actual Auth0/Cloudflare/Better Stack configuration, monitoring
 delivery, backup media, recovery performance, and observed evidence are external. A successful
 staging deployment is not production certification. Production deployment, domain, region,

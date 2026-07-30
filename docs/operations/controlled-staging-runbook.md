@@ -5,15 +5,17 @@
 This runbook permits synthetic staging verification only. Repository staging preparation is **not a
 deployment**, and it supplies no credentials or operational evidence. Stop for Founder approval
 before applying the Blueprint or purchasing/provisioning anything, choosing a materially significant
-region, entering credentials, creating identities, changing authority or security controls, or
+region other than the Founder-approved Oregon, USA staging region, entering credentials, creating
+identities, changing authority or security controls, or
 performing deployment. Never use real people, organizations, issuer subjects, email, or production
 domains. A successful staging deployment is **not production certification**; production deployment
 and the real Founder-bootstrap ceremony remain separately Founder-controlled.
 
 ## 1. Founder-controlled prerequisites
 
-1. Founder approves paid Render PostgreSQL and paid services, a staging region after legal and
-   operational review, synthetic naming, maintenance window, rollback owner, and teardown date.
+1. Confirm the Founder-approved Oregon, USA staging region (`oregon` in the Render Blueprint), and
+   obtain Founder approval for paid Render PostgreSQL and paid services, synthetic naming,
+   maintenance window, rollback owner, and teardown date.
 2. Establish named human administrative roles with MFA and least privilege in already approved
    Render, Auth0 staging, Cloudflare, Better Stack, and encrypted-backup custody accounts. Do not
    create accounts under this milestone. Record access approvals externally.
@@ -27,8 +29,9 @@ and the real Founder-bootstrap ceremony remain separately Founder-controlled.
 
 ### Render and PostgreSQL
 
-After the separate provisioning approval, apply `render.yaml` without adding any automatic database
-link. Select only the approved staging region. An authorized database administrator uses Render's
+After the separate provisioning approval, verify the database, API, web, and release executor each
+declare `region: oregon`, then apply `render.yaml` without adding any automatic database link or
+overriding the declared region. An authorized database administrator uses Render's
 owner connection ephemerally to run the additive role bootstrap scripts in documented order and
 provisions independent random credentials in the provider secret store. Never copy values to Git,
 shell history, tickets, chat, evidence, or logs.

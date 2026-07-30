@@ -4,12 +4,14 @@ databases:
   - name: rems-staging-postgresql
     databaseName: rems_staging
     plan: basic-256mb
+    region: oregon
 
 services:
   - type: web
     name: rems-staging-api
     runtime: docker
     plan: starter
+    region: oregon
     dockerfilePath: ./Dockerfile
     dockerContext: .
     healthCheckPath: /health/ready
@@ -36,6 +38,7 @@ services:
     name: rems-staging-web
     runtime: docker
     plan: starter
+    region: oregon
     dockerfilePath: ./Dockerfile
     dockerContext: .
     autoDeploy: false
@@ -53,6 +56,7 @@ services:
     name: rems-staging-release
     runtime: docker
     plan: starter
+    region: oregon
     dockerfilePath: ./Dockerfile
     dockerContext: .
     autoDeploy: false
