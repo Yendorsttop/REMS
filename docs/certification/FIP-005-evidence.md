@@ -48,3 +48,25 @@ These source, migration, and CI artifacts are implementation evidence only. They
 Typed fail-closed production configuration, distinct minimal health semantics, graceful shutdown, structured sanitized correlation logging, non-root multi-stage API/web/release images, a separately custodied read-only backup role, native PostgreSQL dump/restore automation, deterministic privilege inspection, disposable restoration verification, SBOM generation, and non-suppressed high/critical image scanning are repository/CI evidence. Existing migrations and bootstrap artifacts were not edited; the backup bootstrap is additive.
 
 CI restoration preserves representative RED-001, external-link, business-audit, and system-security records and reapplies governed role grants. Portable dumps do not capture cluster login state, so Founder-bootstrap lockdown is a separately verified administrative step. CI data and dump files are ephemeral. Actual production hosting, providers, credentials, custody, backup media/schedule, monitoring, alerts, retention, recovery objectives, deployment, migration success, and recovery exercises are absent. **FIP-005G repository readiness is implemented subject to reviewed CI results; full operational certification remains pending real production evidence and Founder decisions.**
+
+## FIP-005H controlled staging preparation
+
+Repository evidence comprises a Render Blueprint declaring separate paid PostgreSQL, API, web, and
+manual suspended release resources; existing Docker-target selection; externally injected secret
+boundaries; staging declaration tests; ADR 0009; a synthetic-only runbook; and external evidence
+templates with a fail-closed completeness gate. The existing mandatory unsuppressed HIGH/CRITICAL
+Trivy image scan and CycloneDX SBOM workflow remain unchanged.
+
+No Blueprint has been applied. No paid resource, tenant, monitor, DNS record, account, identity,
+credential, secret store, backup, restore target, or staging deployment was created. Consequently
+there is no observed deployment revision, migration result, ownership/grant state, health result,
+OIDC result, alert delivery, backup media, recovery performance, vulnerability disposition, rollback
+result, custody record, or Founder operational review. Templates are not evidence, and their local
+shape gate does not authenticate an assertion.
+
+**Precise status:** FIP-005H repository staging preparation is implemented subject to reviewed CI and
+Founder review; it is not a deployment or staging operational certification. Even a later successful
+staging deployment will not be production certification. Production deployment remains separately
+Founder-controlled. Actual credentials, custody records, provider configuration, monitoring delivery,
+backup media, recovery performance, and operational evidence must remain external and must be
+verified before any narrower operational claim.

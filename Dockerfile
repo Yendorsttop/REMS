@@ -1,3 +1,5 @@
+ARG REMS_TARGET=api
+
 FROM node:22-alpine AS build
 RUN corepack enable
 WORKDIR /app
@@ -84,3 +86,7 @@ ENV NODE_ENV=production
 COPY --from=build --chown=node:node /app /app
 USER node
 CMD ["sh","-c","test -n \"$MIGRATION_DATABASE_URL\" && DATABASE_URL=\"$MIGRATION_DATABASE_URL\" pnpm --filter @rems/database prisma:migrate:deploy"]
+
+# Render builds the final stage. REMS_TARGET is a non-secret build selector; each
+# Blueprint service selects one of the governed targets above.
+FROM ${REMS_TARGET} AS runtime
