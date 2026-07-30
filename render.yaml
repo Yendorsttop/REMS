@@ -49,22 +49,3 @@ services:
         value: production
       - key: NEXT_PUBLIC_REMS_API_ORIGIN
         sync: false
-
-  # This is a deliberately suspended, manual release executor, not a runtime
-  # worker. Keep scaled to zero except for one observed migration execution.
-  - type: worker
-    name: rems-staging-release
-    runtime: docker
-    plan: starter
-    region: oregon
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
-    autoDeploy: false
-    numInstances: 0
-    envVars:
-      - key: REMS_TARGET
-        value: migration
-      - key: NODE_ENV
-        value: production
-      - key: MIGRATION_DATABASE_URL
-        sync: false
