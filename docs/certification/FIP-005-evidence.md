@@ -4,7 +4,7 @@
 
 The repository contains executable RED-001 domain policy, in-memory adapters, PostgreSQL/Prisma artifacts, REST/OpenAPI composition, a web foundation, container descriptors, and CI checks. CI commands are the reproducible evidence index; their results are recorded by the commit's workflow run.
 
-Database validation is a required part of that evidence. The initial PR #2 workflow exposed invalid one-line `generator`, `datasource`, and `enum` blocks in the Prisma schema; the schema has been corrected to Prisma's multiline syntax rather than bypassing validation. A passing workflow for the corrected commit is the authoritative CI result.
+Database validation and integration are required parts of that evidence. The initial PR #2 workflow exposed invalid one-line `generator`, `datasource`, and `enum` blocks in the Prisma schema; the schema has been corrected to Prisma's multiline syntax rather than bypassing validation. Database integration is verified only after CI provisions its disposable PostgreSQL service, waits for its health check, applies the existing Prisma migration, passes `pnpm db:validate`, and passes `RUN_DATABASE_INTEGRATION=1 pnpm test`. A passing workflow for the commit containing those checks is the authoritative CI result.
 
 ## Required limitations
 

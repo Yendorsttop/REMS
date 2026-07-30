@@ -3,6 +3,22 @@ on: [push, pull_request]
 jobs:
   verify:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: rems_ci
+          POSTGRES_PASSWORD: ci_only
+          POSTGRES_DB: rems_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U rems_ci -d rems_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://rems_ci:ci_only@localhost:5432/rems_ci
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -10,12 +26,16 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
+      - run: pnpm exec prisma generate --schema packages/database/prisma/schema.prisma
       - run: pnpm exec prettier --check .
       - run: pnpm lint
       - run: pnpm typecheck
+      - name: Apply database migrations
+        run: pnpm exec prisma migrate deploy --schema packages/database/prisma/schema.prisma
       - run: pnpm db:validate
-        env: { DATABASE_URL: 'postgresql://validation:validation@localhost:5432/validation' }
       - run: pnpm test
+      - name: Run PostgreSQL integration tests
+        run: RUN_DATABASE_INTEGRATION=1 pnpm test
       - run: pnpm build
       - run: pnpm test:e2e
       - run: git diff --check
