@@ -12,7 +12,8 @@
     }
   },
   "scripts": {
-    "build": "tsc -b"
+    "build": "tsc -b",
+    "prisma:generate": "prisma generate --schema prisma/schema.prisma"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
