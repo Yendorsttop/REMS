@@ -7,3 +7,11 @@ Report vulnerabilities privately to the repository maintainers; do not open a pu
 `packages/database/security/bootstrap-roles.sql` separates migration ownership, application runtime, audit reading, and emergency administration. The required order is administrative bootstrap, credential injection outside source control, Prisma migration as `rems_migration_owner`, and only then application startup as `rems_application`. When upgrading a database with pre-FIP-005C objects, the administrator reruns the bootstrap to transfer those existing objects before migration. Never use the migration or emergency credential at runtime. `rems_audit_reader` is limited to audit reads.
 
 Runtime grants make `AuditEvent` append-only for the application and read-only for the audit reader. Corrections must be new compensating events. These grants do not and cannot make a PostgreSQL superuser, object owner, or appropriately privileged emergency administrator technically incapable of alteration. Emergency recovery requires documented Founder authorization. Production provisioning, credential custody, deployment verification, and emergency-access evidence are not supplied by repository or CI artifacts.
+
+## OIDC identity boundary
+
+Authentication proves external identity; RED-001 persistence alone supplies business authority. Unknown issuers, subjects, links, inactive links, and inactive or suspended executives are denied. Tokens are signature-, issuer-, audience-, expiry-, not-before-, algorithm-, and key-validated via JOSE/JWKS. Never log or persist bearer tokens. Email and external roles, groups, titles, scopes, or permissions are not authoritative linking or authorization inputs.
+
+Pre-authentication denials are not inserted into the actor-required RED-001 audit table. ADR 0005 documents the safe future system-security evidence boundary rather than inventing an actor.
+
+External identity link resolution is implemented with runtime `SELECT` access only. Link creation, change, suspension, and rejection administration are intentionally not implemented. Future link lifecycle operations require separately approved, actor-authorized RED-001 commands that append audit evidence and use an appropriate controlled persistence authority; the runtime role must not be broadened merely to anticipate those operations.

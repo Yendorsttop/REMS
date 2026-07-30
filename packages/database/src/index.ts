@@ -204,3 +204,18 @@ export class PrismaAuthorizationPort implements AuthorizationPort {
     return { actorId, permissions: new Set(assignments.map(({ permission }) => permission)) };
   }
 }
+
+@Injectable()
+export class PrismaExternalIdentityResolver {
+  constructor(private readonly context: PrismaTransactionContext) {}
+  async resolve(issuer: string, subject: string): Promise<string | null> {
+    const links = await this.context.client.$queryRaw<Array<{ executiveId: string }>>`
+      SELECT link."executiveId"
+      FROM "ExternalIdentityLink" link
+      JOIN "ExecutiveIdentity" executive ON executive.id = link."executiveId"
+      WHERE link.issuer = ${issuer} AND link.subject = ${subject}
+        AND link.active = true AND executive.status = 'ACTIVE'
+      LIMIT 1`;
+    return links[0]?.executiveId ?? null;
+  }
+}

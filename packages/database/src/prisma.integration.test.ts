@@ -1,10 +1,12 @@
 import { randomUUID } from 'node:crypto';
+import { PrismaClient } from '@prisma/client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Red001Service } from '@rems/red-001';
 import {
   PrismaAuditEventPort,
   PrismaAuthorizationPort,
   PrismaExecutiveIdentityRepository,
+  PrismaExternalIdentityResolver,
   PrismaOrganizationRepository,
   PrismaService,
   PrismaTransactionContext,
@@ -13,11 +15,13 @@ import {
 const databaseSuite = process.env['RUN_DATABASE_INTEGRATION'] === '1' ? describe : describe.skip;
 databaseSuite('RED-001 Prisma/PostgreSQL persistence', () => {
   let prisma: PrismaService;
+  let migrationOwner: PrismaClient;
   let transaction: PrismaTransactionContext;
   let identities: PrismaExecutiveIdentityRepository;
   let organizations: PrismaOrganizationRepository;
   let audit: PrismaAuditEventPort;
   let authorization: PrismaAuthorizationPort;
+  let externalIdentities: PrismaExternalIdentityResolver;
   const prefix = `integration-${randomUUID().slice(0, 8)}`;
   const founderId = `${prefix}-founder`;
   let eventNumber = 0;
@@ -25,11 +29,13 @@ databaseSuite('RED-001 Prisma/PostgreSQL persistence', () => {
 
   beforeAll(async () => {
     prisma = new PrismaService();
+    migrationOwner = new PrismaClient({ datasourceUrl: process.env['MIGRATION_DATABASE_URL'] });
     transaction = new PrismaTransactionContext(prisma);
     identities = new PrismaExecutiveIdentityRepository(transaction);
     organizations = new PrismaOrganizationRepository(transaction);
     audit = new PrismaAuditEventPort(transaction);
     authorization = new PrismaAuthorizationPort(organizations);
+    externalIdentities = new PrismaExternalIdentityResolver(transaction);
     service = new Red001Service(
       identities,
       organizations,
@@ -39,7 +45,7 @@ databaseSuite('RED-001 Prisma/PostgreSQL persistence', () => {
       () => new Date('2026-07-30T00:00:00.000Z'),
       transaction,
     );
-    await prisma.$connect();
+    await Promise.all([prisma.$connect(), migrationOwner.$connect()]);
     await prisma.executiveIdentity.create({
       data: { id: founderId, displayName: 'Synthetic Founder' },
     });
@@ -59,13 +65,40 @@ databaseSuite('RED-001 Prisma/PostgreSQL persistence', () => {
   });
 
   afterAll(async () => {
+    await migrationOwner.$executeRaw`DELETE FROM "ExternalIdentityLink" WHERE "executiveId" LIKE ${`${prefix}%`}`;
     await prisma.permissionAssignment.deleteMany({
       where: { executiveId: { startsWith: prefix } },
     });
     await prisma.membership.deleteMany({ where: { executiveId: { startsWith: prefix } } });
     await prisma.organizationUnit.deleteMany({ where: { id: { startsWith: prefix } } });
     await prisma.executiveIdentity.deleteMany({ where: { id: { startsWith: prefix } } });
-    await prisma.$disconnect();
+    await Promise.all([prisma.$disconnect(), migrationOwner.$disconnect()]);
+  });
+
+  it('resolves only active issuer-subject links to active RED-001 identities', async () => {
+    const activeId = `${prefix}-oidc-active`;
+    const suspendedId = `${prefix}-oidc-suspended`;
+    await prisma.executiveIdentity.createMany({
+      data: [
+        { id: activeId, displayName: 'OIDC Active' },
+        { id: suspendedId, displayName: 'OIDC Suspended', status: 'SUSPENDED' },
+      ],
+    });
+    await migrationOwner.$executeRaw`
+      INSERT INTO "ExternalIdentityLink" (id, issuer, subject, "executiveId", active, "updatedAt")
+      VALUES (${randomUUID()}::uuid, 'https://issuer.test', 'active', ${activeId}, true, now()),
+             (${randomUUID()}::uuid, 'https://issuer.test', 'disabled-link', ${activeId}, false, now()),
+             (${randomUUID()}::uuid, 'https://issuer.test', 'suspended', ${suspendedId}, true, now())`;
+    await expect(externalIdentities.resolve('https://issuer.test', 'active')).resolves.toBe(
+      activeId,
+    );
+    await expect(externalIdentities.resolve('https://issuer.test', 'unknown')).resolves.toBeNull();
+    await expect(
+      externalIdentities.resolve('https://issuer.test', 'disabled-link'),
+    ).resolves.toBeNull();
+    await expect(
+      externalIdentities.resolve('https://issuer.test', 'suspended'),
+    ).resolves.toBeNull();
   });
 
   it('persists identities, hierarchy, memberships, roles, reporting, permissions, and audit events', async () => {

@@ -22,3 +22,9 @@ For local disposable development, start PostgreSQL with `docker compose up -d po
 ## Status
 
 FIP-005C role/grant definitions and database-level runtime audit immutability are implemented and designed for CI verification; operational certification is not claimed. Production role provisioning, hosting, credentials, OIDC, deployment, and operational verification remain outstanding. See `docs/certification/FIP-005-evidence.md` for precise limitations.
+
+## FIP-005D authentication
+
+The API verifies OIDC JWT bearer tokens and explicitly maps the verified issuer-and-subject pair to an active RED-001 executive identity. Provider claims never grant REMS roles or permissions. Deployments must set `OIDC_ISSUER`, `OIDC_AUDIENCE`, and optionally `OIDC_ALLOWED_ALGORITHMS` (default `RS256`). No production provider is selected by this repository.
+
+Only link resolution is implemented. The runtime application has read-only access to external identity links. Link administration is intentionally absent; any future link lifecycle requires separately approved, actor-authorized RED-001 commands, audit events, and an appropriately controlled persistence authority.

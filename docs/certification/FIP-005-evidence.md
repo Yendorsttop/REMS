@@ -19,3 +19,11 @@ The ephemeral PostgreSQL workflow creates the roles with explicitly CI-only pass
 - Docker, migrations, grants, tests, and workflows are implementation artifacts, not proof of production operation.
 
 **FIP-005C database security controls are implemented and subject to CI verification; full operational certification is not claimed.** Production provisioning and deployment evidence, a successful reviewed CI run, Founder-authorized operational controls, and all remaining integrations are prerequisites to any later operational claim.
+
+## FIP-005D provider-neutral OIDC verification
+
+Implemented evidence includes an additive RED-001 external identity link, JOSE access-token verification, JWKS caching/rotation behavior, Nest request integration, default-deny resolution, and controlled local issuer tests. CI exercises these tests without a commercial provider.
+
+This evidence does **not** establish production-provider provisioning, production configuration, deployment, operational monitoring, system-security rejection evidence, or full operational certification. Those remain pending Founder-reviewed infrastructure and deployment evidence.
+
+Link resolution is implemented with application-role `SELECT` only. Link administration is intentionally not implemented. Future link lifecycle operations require separately approved, actor-authorized RED-001 commands with audit events and an appropriate controlled persistence authority. The migration-owner connection seeds controlled integration fixtures; it is not a runtime credential or operational administration mechanism.
