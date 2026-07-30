@@ -1,3 +1,5 @@
+ARG REMS_TARGET=api
+
 FROM node:22-alpine AS build
 RUN corepack enable
 WORKDIR /app
@@ -87,5 +89,4 @@ CMD ["sh","-c","test -n \"$MIGRATION_DATABASE_URL\" && DATABASE_URL=\"$MIGRATION
 
 # Render builds the final stage. REMS_TARGET is a non-secret build selector; each
 # Blueprint service selects one of the governed targets above.
-ARG REMS_TARGET=api
 FROM ${REMS_TARGET} AS runtime
