@@ -23,11 +23,13 @@ import type { INestApplication } from '@nestjs/common';
 import type { Request } from 'express';
 import { DomainError, Red001Service } from '@rems/red-001';
 import {
-  InMemoryAuditEventPort,
-  InMemoryExecutiveIdentityRepository,
-  InMemoryOrganizationRepository,
-  StaticAuthorizationPort,
-} from '@rems/testing';
+  PrismaAuditEventPort,
+  PrismaAuthorizationPort,
+  PrismaExecutiveIdentityRepository,
+  PrismaOrganizationRepository,
+  PrismaService,
+  PrismaTransactionContext,
+} from '@rems/database';
 class CreateIdentityDto {
   @ApiProperty({ example: 'synthetic-executive' }) id!: string;
   @ApiProperty({ example: 'Synthetic Executive' }) displayName!: string;
@@ -40,23 +42,16 @@ class CreateUnitDto {
     'ORGANIZATION' | 'DEPARTMENT' | 'TEAM';
   @ApiProperty({ required: false }) parentId?: string;
 }
-const permissions = new Set([
-  'red001.identity.create',
-  'red001.identity.lifecycle',
-  'red001.identity.read',
-  'red001.organization.manage',
-  'red001.membership.manage',
-  'red001.authorization.manage',
-]);
 @Injectable()
 export class Red001Facade extends Red001Service {
-  constructor() {
-    super(
-      new InMemoryExecutiveIdentityRepository(),
-      new InMemoryOrganizationRepository(),
-      new InMemoryAuditEventPort(),
-      new StaticAuthorizationPort(new Map([['synthetic-founder', permissions]])),
-    );
+  constructor(
+    identities: PrismaExecutiveIdentityRepository,
+    organizations: PrismaOrganizationRepository,
+    audit: PrismaAuditEventPort,
+    authorization: PrismaAuthorizationPort,
+    transaction: PrismaTransactionContext,
+  ) {
+    super(identities, organizations, audit, authorization, undefined, undefined, transaction);
   }
 }
 type ActorRequest = Request & { headers: { 'x-actor-id'?: string } };
@@ -121,7 +116,18 @@ export class Red001Controller {
     return body;
   }
 }
-@Module({ controllers: [Red001Controller], providers: [Red001Facade] })
+@Module({
+  controllers: [Red001Controller],
+  providers: [
+    PrismaService,
+    PrismaTransactionContext,
+    PrismaExecutiveIdentityRepository,
+    PrismaOrganizationRepository,
+    PrismaAuditEventPort,
+    PrismaAuthorizationPort,
+    Red001Facade,
+  ],
+})
 export class AppModule {}
 export function configureOpenApi(app: INestApplication) {
   const config = new DocumentBuilder()

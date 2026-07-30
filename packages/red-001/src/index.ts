@@ -112,6 +112,12 @@ export interface AuditEvent {
 export interface AuditEventPort {
   append(event: AuditEvent): Promise<void>;
 }
+export interface PersistenceTransactionPort {
+  run<T>(operation: () => Promise<T>): Promise<T>;
+}
+export const directPersistenceTransaction: PersistenceTransactionPort = {
+  run: (operation) => operation(),
+};
 export interface AuthorizationContext {
   readonly actorId: string;
   readonly permissions: ReadonlySet<string>;
@@ -137,6 +143,7 @@ export class Red001Service {
     private readonly authorization: AuthorizationPort,
     private readonly id: IdGenerator = () => crypto.randomUUID(),
     private readonly clock: Clock = () => new Date(),
+    private readonly transaction: PersistenceTransactionPort = directPersistenceTransaction,
   ) {}
   private async require(actorId: string, permission: string): Promise<void> {
     const context = await this.authorization.contextFor(actorId);
@@ -147,67 +154,77 @@ export class Red001Service {
     actorId: string,
     input: { id: string; displayName: string; externalSubject?: string },
   ): Promise<ExecutiveIdentity> {
-    await this.require(actorId, 'red001.identity.create');
-    if (await this.identities.findById(input.id))
-      throw new DomainError('Executive identity already exists');
-    if (
-      input.externalSubject &&
-      (await this.identities.findByExternalSubject(input.externalSubject))
-    )
-      throw new DomainError('External subject already assigned');
-    const identity = ExecutiveIdentity.create(
-      ExecutiveId.create(input.id),
-      DisplayName.create(input.displayName),
-      input.externalSubject,
-    );
-    await this.identities.save(identity);
-    await this.record(actorId, 'red001.identity.created', input.id, { status: 'ACTIVE' });
-    return identity;
+    return this.transaction.run(async () => {
+      await this.require(actorId, 'red001.identity.create');
+      if (await this.identities.findById(input.id))
+        throw new DomainError('Executive identity already exists');
+      if (
+        input.externalSubject &&
+        (await this.identities.findByExternalSubject(input.externalSubject))
+      )
+        throw new DomainError('External subject already assigned');
+      const identity = ExecutiveIdentity.create(
+        ExecutiveId.create(input.id),
+        DisplayName.create(input.displayName),
+        input.externalSubject,
+      );
+      await this.identities.save(identity);
+      await this.record(actorId, 'red001.identity.created', input.id, { status: 'ACTIVE' });
+      return identity;
+    });
   }
   async transitionIdentity(
     actorId: string,
     identityId: string,
     transition: 'suspend' | 'reactivate' | 'deactivate',
   ): Promise<ExecutiveIdentity> {
-    await this.require(actorId, 'red001.identity.lifecycle');
-    const current = await this.identities.findById(identityId);
-    if (!current) throw new DomainError('Executive identity not found');
-    const updated =
-      transition === 'suspend'
-        ? current.suspend()
-        : transition === 'reactivate'
-          ? current.reactivate()
-          : current.deactivate();
-    await this.identities.save(updated);
-    await this.record(actorId, `red001.identity.${transition}d`, identityId, {});
-    return updated;
+    return this.transaction.run(async () => {
+      await this.require(actorId, 'red001.identity.lifecycle');
+      const current = await this.identities.findById(identityId);
+      if (!current) throw new DomainError('Executive identity not found');
+      const updated =
+        transition === 'suspend'
+          ? current.suspend()
+          : transition === 'reactivate'
+            ? current.reactivate()
+            : current.deactivate();
+      await this.identities.save(updated);
+      await this.record(actorId, `red001.identity.${transition}d`, identityId, {});
+      return updated;
+    });
   }
   async createUnit(actorId: string, unit: OrganizationUnit): Promise<void> {
-    await this.require(actorId, 'red001.organization.manage');
-    if (unit.parentId && !(await this.organizations.findUnit(unit.parentId)))
-      throw new DomainError('Parent organization unit not found');
-    await this.organizations.saveUnit(unit);
-    await this.record(actorId, 'red001.organization-unit.created', unit.id, { kind: unit.kind });
+    await this.transaction.run(async () => {
+      await this.require(actorId, 'red001.organization.manage');
+      if (unit.parentId && !(await this.organizations.findUnit(unit.parentId)))
+        throw new DomainError('Parent organization unit not found');
+      await this.organizations.saveUnit(unit);
+      await this.record(actorId, 'red001.organization-unit.created', unit.id, { kind: unit.kind });
+    });
   }
   async assignMembership(actorId: string, membership: Membership): Promise<void> {
-    await this.require(actorId, 'red001.membership.manage');
-    if (!(await this.identities.findById(membership.executiveId)))
-      throw new DomainError('Executive identity not found');
-    if (!(await this.organizations.findUnit(membership.unitId)))
-      throw new DomainError('Organization unit not found');
-    await this.organizations.saveMembership(membership);
-    await this.record(actorId, 'red001.membership.assigned', membership.executiveId, {
-      unitId: membership.unitId,
-      role: membership.role,
+    await this.transaction.run(async () => {
+      await this.require(actorId, 'red001.membership.manage');
+      if (!(await this.identities.findById(membership.executiveId)))
+        throw new DomainError('Executive identity not found');
+      if (!(await this.organizations.findUnit(membership.unitId)))
+        throw new DomainError('Organization unit not found');
+      await this.organizations.saveMembership(membership);
+      await this.record(actorId, 'red001.membership.assigned', membership.executiveId, {
+        unitId: membership.unitId,
+        role: membership.role,
+      });
     });
   }
   async assignPermission(actorId: string, assignment: PermissionAssignment): Promise<void> {
-    await this.require(actorId, 'red001.authorization.manage');
-    if (!(await this.identities.findById(assignment.executiveId)))
-      throw new DomainError('Executive identity not found');
-    await this.organizations.savePermission(assignment);
-    await this.record(actorId, 'red001.permission.assigned', assignment.executiveId, {
-      permission: assignment.permission,
+    await this.transaction.run(async () => {
+      await this.require(actorId, 'red001.authorization.manage');
+      if (!(await this.identities.findById(assignment.executiveId)))
+        throw new DomainError('Executive identity not found');
+      await this.organizations.savePermission(assignment);
+      await this.record(actorId, 'red001.permission.assigned', assignment.executiveId, {
+        permission: assignment.permission,
+      });
     });
   }
   async listIdentities(actorId: string): Promise<ExecutiveIdentity[]> {

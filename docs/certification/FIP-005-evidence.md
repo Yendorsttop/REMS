@@ -2,14 +2,16 @@
 
 ## Evidence scope
 
-The repository contains executable RED-001 domain policy, in-memory adapters, PostgreSQL/Prisma artifacts, REST/OpenAPI composition, a web foundation, container descriptors, and CI checks. CI commands are the reproducible evidence index; their results are recorded by the commit's workflow run.
+The repository contains executable RED-001 domain policy, Prisma/PostgreSQL persistence adapters, isolated-test in-memory adapters, transactional REST composition, a web foundation, container descriptors, and CI checks. CI commands are the reproducible evidence index; their results are recorded by the commit's workflow run.
 
 Database validation is a required part of that evidence. The initial PR #2 workflow exposed invalid one-line `generator`, `datasource`, and `enum` blocks in the Prisma schema; the schema has been corrected to Prisma's multiline syntax rather than bypassing validation. A passing workflow for the corrected commit is the authoritative CI result.
 
+FIP-005B integration evidence covers identities, organization/department/team hierarchy, memberships, roles, reporting relationships, scoped permissions, audit-event inserts, command rollback when audit insertion fails, and restrictive foreign-key deletion. The integration suite runs only when `DATABASE_URL` identifies a migrated PostgreSQL test database; a skipped suite is not passing database evidence.
+
 ## Required limitations
 
-- In-memory adapters are not production persistence.
-- Prisma schema and migrations do not prove production persistence integration.
+- In-memory adapters are isolated test doubles and are not application persistence.
+- Prisma adapters are production-capable code, but do not prove a production deployment or approved database configuration.
 - Application-level append-only audit behavior is not database-enforced immutability.
 - Production database-role grants remain pending Founder-approved security policy.
 - Production OIDC verification remains unconfigured; the interface and OpenAPI security declaration are compatibility seams only.
@@ -18,4 +20,4 @@ Database validation is a required part of that evidence. The initial PR #2 workf
 
 ## Certification status
 
-**Foundation implemented; operational certification not claimed.** FIP-005 evidence supports repository-foundation review only. Founder approval and verified production integrations, security controls, deployment evidence, and all executable checks are prerequisites to any later operational claim.
+**FIP-005B implementation evidence available; operational certification not claimed.** Passing PostgreSQL integration tests support persistence implementation review. Founder approval and verified production hosting, database roles, audit immutability policy, OIDC, security controls, deployment evidence, and all executable checks are prerequisites to any later operational claim.
