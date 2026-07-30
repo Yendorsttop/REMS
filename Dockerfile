@@ -4,7 +4,15 @@ WORKDIR /app
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json tsconfig*.json .prettierrc.json ./
 COPY apps ./apps
 COPY packages ./packages
-RUN pnpm install --frozen-lockfile && pnpm --filter @rems/database prisma:generate && pnpm build \
+RUN pnpm install --frozen-lockfile \
+ && pnpm --filter @rems/database prisma:generate \
+ && pnpm --filter @rems/config build \
+ && pnpm --filter @rems/contracts build \
+ && pnpm --filter @rems/observability build \
+ && pnpm --filter @rems/red-001 build \
+ && pnpm --filter @rems/database build \
+ && pnpm --filter @rems/api build \
+ && pnpm --filter @rems/web build \
  && find /app -type f \( -name '*.test.ts' -o -name '*.map' \) -delete \
  && find /app -type d \( -name .cache -o -name coverage \) -prune -exec rm -rf '{}' +
 
