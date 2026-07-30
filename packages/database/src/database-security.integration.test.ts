@@ -11,6 +11,7 @@ databaseSuite('FIP-005C/FIP-005D restricted PostgreSQL roles', () => {
   let migrationOwner: PrismaClient;
   let identityAdmin: PrismaClient;
   let founderBootstrap: PrismaClient;
+  let securityReader: PrismaClient;
   const eventId = randomUUID();
   const linkedExecutiveId = `security-link-${randomUUID().slice(0, 8)}`;
   const linkedSubject = `subject-${randomUUID()}`;
@@ -25,12 +26,16 @@ databaseSuite('FIP-005C/FIP-005D restricted PostgreSQL roles', () => {
     founderBootstrap = new PrismaClient({
       datasourceUrl: process.env['FOUNDER_BOOTSTRAP_DATABASE_URL'],
     });
+    securityReader = new PrismaClient({
+      datasourceUrl: process.env['SECURITY_READER_DATABASE_URL'],
+    });
     await Promise.all([
       application.$connect(),
       reader.$connect(),
       migrationOwner.$connect(),
       identityAdmin.$connect(),
       founderBootstrap.$connect(),
+      securityReader.$connect(),
     ]);
     await migrationOwner.$executeRaw`
       INSERT INTO "ExecutiveIdentity" (id, "displayName", "updatedAt")
@@ -61,13 +66,55 @@ databaseSuite('FIP-005C/FIP-005D restricted PostgreSQL roles', () => {
     });
     await migrationOwner.$executeRaw`DELETE FROM "ExternalIdentityLink" WHERE "executiveId" = ${linkedExecutiveId}`;
     await migrationOwner.$executeRaw`DELETE FROM "ExecutiveIdentity" WHERE id = ${linkedExecutiveId}`;
+    await migrationOwner.systemSecurityEvidence.deleteMany({
+      where: { correlationId: 'security-evidence-ci' },
+    });
     await Promise.all([
       application.$disconnect(),
       reader.$disconnect(),
       migrationOwner.$disconnect(),
       identityAdmin.$disconnect(),
       founderBootstrap.$disconnect(),
+      securityReader.$disconnect(),
     ]);
+  });
+
+  it('enforces the dedicated append-only security-evidence privileges and ownership', async () => {
+    const id = randomUUID();
+    await application.systemSecurityEvidence.create({
+      data: {
+        id,
+        eventType: 'AUTHENTICATION_REJECTED',
+        outcome: 'DENIED',
+        reasonCode: 'MISSING_BEARER_TOKEN',
+        correlationId: 'security-evidence-ci',
+      },
+    });
+    await expect(
+      application.systemSecurityEvidence.findUnique({ where: { id } }),
+    ).rejects.toThrow();
+    await expect(
+      securityReader.systemSecurityEvidence.findUnique({ where: { id } }),
+    ).resolves.toMatchObject({ id });
+    for (const client of [application, securityReader])
+      for (const statement of [
+        `UPDATE "SystemSecurityEvidence" SET "reasonCode" = 'MALFORMED_TOKEN' WHERE id = '${id}'`,
+        `DELETE FROM "SystemSecurityEvidence" WHERE id = '${id}'`,
+        'TRUNCATE TABLE "SystemSecurityEvidence"',
+      ])
+        await expect(client.$executeRawUnsafe(statement)).rejects.toThrow();
+    await expect(
+      securityReader.$executeRawUnsafe(
+        `INSERT INTO "SystemSecurityEvidence" (id,"eventType",outcome,"reasonCode","correlationId") VALUES ('${randomUUID()}','AUTHENTICATION_REJECTED','DENIED','MALFORMED_TOKEN','forbidden')`,
+      ),
+    ).rejects.toThrow();
+    const state = await migrationOwner.$queryRaw<Array<{ tableowner: string }>>`
+      SELECT tableowner FROM pg_tables WHERE schemaname='public' AND tablename='SystemSecurityEvidence'`;
+    expect(state).toEqual([{ tableowner: 'rems_migration_owner' }]);
+    for (const client of [reader, identityAdmin, founderBootstrap])
+      await expect(
+        client.$queryRawUnsafe('SELECT * FROM "SystemSecurityEvidence"'),
+      ).rejects.toThrow();
   });
 
   it('allows the application role to append and read audit events', async () => {

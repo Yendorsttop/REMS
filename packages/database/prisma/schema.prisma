@@ -88,3 +88,14 @@ model AuditEvent {
   payload Json
   @@index([subjectId,occurredAt])
 }
+
+model SystemSecurityEvidence {
+  id String @id @db.Uuid
+  occurredAt DateTime @default(now()) @db.Timestamptz(6)
+  eventType String @db.VarChar(64)
+  outcome String @db.VarChar(32)
+  reasonCode String @db.VarChar(64)
+  correlationId String @db.VarChar(128)
+  @@index([occurredAt])
+  @@index([correlationId])
+}

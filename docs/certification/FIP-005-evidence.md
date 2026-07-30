@@ -1,5 +1,12 @@
 # FIP-005 Certification Evidence
 
+## FIP-005F repository evidence
+
+The additive constrained schema, least-privilege roles, typed adapter, generic-denial integration,
+and automated checks are repository evidence only. They do not certify production provisioning,
+retention, monitoring, alert routing, deployment, or incident response. Append-only controls do not
+claim absolute immutability against owners, superusers, or authorized emergency administrators.
+
 ## Implemented artifacts
 
 FIP-005C adds version-controlled administrative role bootstrap, migration-owned grants, restricted-role integration tests, and CI orchestration. The migration owner owns migrated objects and is not a runtime credential. The application can operate on RED-001 records and append/read audit events but receives no audit `UPDATE`, `DELETE`, or `TRUNCATE`. The audit reader receives audit `SELECT` only. Corrections use new compensating audit events.

@@ -37,7 +37,9 @@ describe('RED-001 REST API', () => {
         .overrideProvider(OidcTokenVerifier)
         .useValue({ verify: async () => ({ issuer: 'https://issuer.test', subject: 'founder' }) })
         .overrideProvider(PrismaExternalIdentityResolver)
-        .useValue({ resolve: async () => 'synthetic-founder' })
+        .useValue({ resolveForAuthentication: async () => ({ executiveId: 'synthetic-founder' }) })
+        .overrideProvider('SecurityEvidencePort')
+        .useValue({ append: async () => undefined })
         .compile()
     ).createNestApplication();
     configureOpenApi(app);
