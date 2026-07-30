@@ -51,17 +51,25 @@ CI restoration preserves representative RED-001, external-link, business-audit, 
 
 ## FIP-005H controlled staging preparation
 
-Repository evidence comprises a Render Blueprint declaring separate paid PostgreSQL, API, web, and
-manual suspended release resources, each explicitly pinned to the Founder-approved Oregon region;
-existing Docker-target selection; externally injected secret
+Repository evidence comprises a Render Blueprint declaring only paid PostgreSQL, API, and web, each
+explicitly pinned to the Founder-approved Oregon region; existing runtime Docker-target selection;
+externally injected application-role secret
 boundaries; staging declaration tests; ADR 0009; a synthetic-only runbook; and external evidence
 templates with a fail-closed completeness gate. The existing mandatory unsuppressed HIGH/CRITICAL
 Trivy image scan and CycloneDX SBOM workflow remain unchanged.
 
+Render cannot represent a newly declared background worker with zero instances. The invalid
+release-migration executor was removed from the initial Blueprint rather than allowed to run
+continuously. No worker, cron job, pre-deploy command, privileged migration credential, or automatic
+migration path replaces it. Migration execution requires a later, separately Founder-approved and
+controlled administrative mechanism. Until that process is provisioned and completes successfully,
+the API may intentionally remain unavailable.
+
 No Blueprint has been applied. No paid resource, tenant, monitor, DNS record, account, identity,
 credential, secret store, backup, restore target, or staging deployment was created. Consequently
-the region declaration is not evidence of provisioned regional placement, and there is no observed
-deployment revision, migration result, ownership/grant state, health result,
+the declaration is not evidence that any resource was provisioned or deployed, including regional
+placement, and there is no observed deployment revision, migration result, ownership/grant state,
+health result,
 OIDC result, alert delivery, backup media, recovery performance, vulnerability disposition, rollback
 result, custody record, or Founder operational review. Templates are not evidence, and their local
 shape gate does not authenticate an assertion.

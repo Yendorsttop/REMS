@@ -23,15 +23,19 @@ and the real Founder-bootstrap ceremony remain separately Founder-controlled.
    deploy, secret-management, database-administration, and log-viewing roles. No ordinary deployer
    receives Founder, emergency, backup, identity-admin, or evidence-reader custody.
 4. Review the commit, successful CI, image/SBOM/Trivy results, Blueprint diff, and provider terms.
-   Keep release execution at zero instances and automatic deployment disabled.
+   Confirm automatic deployment is disabled and the initial Blueprint contains no migration
+   executor or automatic migration path.
 
 ## 2. Exact external staging configuration
 
 ### Render and PostgreSQL
 
-After the separate provisioning approval, verify the database, API, web, and release executor each
-declare `region: oregon`, then apply `render.yaml` without adding any automatic database link or
-overriding the declared region. An authorized database administrator uses Render's
+After the separate provisioning approval, verify the database, API, and web each declare
+`region: oregon`, then apply `render.yaml` without adding any automatic database link or overriding
+the declared region. Render cannot represent a newly declared background worker with zero instances.
+The release-migration executor was therefore removed from this initial Blueprint rather than allowed
+to run continuously. Do not add a worker, cron job, pre-deploy command, migration credential, or any
+other automatic migration path when applying it. An authorized database administrator uses Render's
 owner connection ephemerally to run the additive role bootstrap scripts in documented order and
 provisions independent random credentials in the provider secret store. Never copy values to Git,
 shell history, tickets, chat, evidence, or logs.
@@ -39,7 +43,6 @@ shell history, tickets, chat, evidence, or logs.
 Inject only:
 
 - API: `DATABASE_URL` for `rems_application`, plus non-secret runtime/OIDC configuration.
-- Release executor: `MIGRATION_DATABASE_URL` for `rems_migration_owner`.
 - Web: `NEXT_PUBLIC_REMS_API_ORIGIN`; no database credential.
 
 Do not assign `rems_founder_bootstrap`, `rems_identity_admin`, `rems_audit_reader`,
@@ -86,31 +89,37 @@ configure a production domain. Update Auth0 boundaries only after exact staging 
 
 ## 3. Controlled release sequence
 
-1. Capture reviewed commit SHA and immutable image digests. Keep API/web stopped and release at zero.
-2. With ephemeral administrative access, run `bootstrap-roles.sql` and the additive identity,
-   security-reader, and backup bootstrap artifacts as applicable. Never edit historical migrations.
-3. Scale the release executor to exactly one for one observed run. Confirm it uses only
-   `rems_migration_owner`; capture migration names, checksums, UTC times, digest, and exit status
-   without its URL. Immediately return it to zero. Any nonzero exit blocks startup.
-4. In an isolated ceremony process only, inject `FOUNDER_BOOTSTRAP_DATABASE_URL` and run the existing
+The initial Blueprint cannot execute this sequence. Migration execution requires a later, separately
+Founder-approved and controlled administrative mechanism that is not provisioned or specified here.
+Do not infer approval to create it, invent its credential, or attach privileged access to API or web.
+The API may remain unavailable until that mechanism is approved and migrations complete successfully;
+this fail-closed state is intentional.
+
+1. Capture the reviewed commit SHA and immutable API/web image digests. Keep API/web stopped.
+2. Through the separately approved administrative mechanism and ephemeral access, run
+   `bootstrap-roles.sql`, the additive identity, security-reader, and backup bootstrap artifacts as
+   applicable, and the existing migrations in documented order. Never edit historical migrations.
+   Confirm migration authority separation; capture migration names, checksums, UTC times, image or
+   tool revision, and exit status without its URL. Any nonzero exit blocks startup.
+3. In an isolated ceremony process only, inject `FOUNDER_BOOTSTRAP_DATABASE_URL` and run the existing
    identity CLI with clearly synthetic IDs, display name, issuer, subject, and organization. Do not
    record those values in repository artifacts. This is a **synthetic staging ceremony**, never the
    production ceremony.
-5. Immediately run `lockdown-founder-bootstrap-role.sql` through authorized administrative access,
+4. Immediately run `lockdown-founder-bootstrap-role.sql` through authorized administrative access,
    terminate residual ceremony sessions, remove the ceremony secret from the process/store, and
    verify `rolcanlogin = false`. Failure blocks API startup.
-6. Start API at the reviewed digest and verify its parsed database username is `rems_application`.
+5. Start API at the reviewed digest and verify its parsed database username is `rems_application`.
    Start web at its reviewed digest and prove its environment has no database credential.
-7. Verify HTTPS `GET /health/live` returns `200 {"status":"ok"}` and `/health/ready` returns
+6. Verify HTTPS `GET /health/live` returns `200 {"status":"ok"}` and `/health/ready` returns
    `200 {"status":"ready"}`. Confirm shutdown withdraws readiness. Capture only minimal output.
-8. Verify OIDC discovery issuer, audience rejection, asymmetric algorithm, signature/key rotation,
+7. Verify OIDC discovery issuer, audience rejection, asymmetric algorithm, signature/key rotation,
    expiry/not-before checks, unknown exact issuer/subject denial, inactive-link denial, and successful
    synthetic RED-001 link resolution. Confirm provider roles cause no elevation.
-9. Through separately injected readers, verify bounded system-security evidence for material denial
+8. Through separately injected readers, verify bounded system-security evidence for material denial
    and business audit for authenticated governed actions. Confirm no token/claims/secret data and no
    fabricated actor; verify application cannot mutate either append-only history.
-10. Enable the two minimal Better Stack checks and verify a synthetic alert reaches only approved
-    recipients with no sensitive content. Record delivery externally.
+9. Enable the two minimal Better Stack checks and verify a synthetic alert reaches only approved
+   recipients with no sensitive content. Record delivery externally.
 
 ## 4. Backup, independent restoration, and reconciliation
 
@@ -137,7 +146,8 @@ Before declaring a staging run reviewed, place redacted records shaped by
 evidence, a HIGH/CRITICAL Trivy finding without Founder disposition, absent CycloneDX SBOM, failed
 restore/security comparison, unsuccessful alert delivery, or unreviewed exception blocks promotion.
 
-Rollback on failed migration/startup/security checks: stop API/web, scale release to zero, preserve
+Rollback on failed migration/startup/security checks: stop API/web and the separately controlled
+administrative mechanism, preserve
 sanitized logs/evidence, revoke affected credentials, and redeploy only the previously reviewed
 immutable digest. Do not reverse migrations or restore over staging without an approved recovery
 decision; exercise the rollback and recheck health, grants, audit, and security state.
@@ -147,5 +157,7 @@ staging DNS; revoke/rotate staging-only credentials; delete synthetic Auth0 user
 Render services/database only with Founder approval; verify billing/resource inventory and credential
 revocation; retain or destroy evidence under the approved policy. Never touch production resources.
 
-Actual credentials, custody records, provider configuration, monitoring delivery, backup media,
-recovery performance, and operational evidence remain external to this repository.
+Repository declarations are not evidence that resources were provisioned or deployed. Actual
+credentials, custody records, provider configuration, monitoring delivery, backup media, recovery
+performance, and operational evidence remain external to this repository. No staging or production
+operational certification is claimed.

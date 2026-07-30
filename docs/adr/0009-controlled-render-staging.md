@@ -6,17 +6,20 @@ Founder-approved repository preparation; no staging resources have been provisio
 
 ## Decision
 
-The staging declaration is a Render Blueprint with four separately governed resources: paid
-PostgreSQL, API, web, and a normally suspended manual release-migration executor. A non-secret
-`REMS_TARGET` selects the existing `api`, `web`, or `migration` Docker target. Automatic deployments
-are disabled. The Founder-approved staging region is Oregon, USA, expressed explicitly as `oregon`
+The initial staging declaration is a Render Blueprint with three separately governed resources: paid
+PostgreSQL, API, and web. A non-secret `REMS_TARGET` selects the existing `api` or `web` Docker
+target. Automatic deployments are disabled. The Founder-approved staging region is Oregon, USA, expressed explicitly as `oregon`
 on every Blueprint resource rather than relying on Render's implicit default. Applying the Blueprint
 and incurring cost still require a separate approval outside this repository change.
 
 The API alone receives an externally injected `DATABASE_URL` whose PostgreSQL user is
-`rems_application`. The web has no database setting. The release executor alone receives
-`MIGRATION_DATABASE_URL` for `rems_migration_owner` and remains at zero instances except during one
-observed release. Render's generated database owner URL is not attached to ordinary services.
+`rems_application`. The web has no database setting. Render cannot represent a newly declared
+background worker with zero instances, so the release-migration executor was removed from the
+initial Blueprint rather than allowed to run continuously. The Blueprint contains no cron job,
+pre-deploy migration command, privileged migration credential, or automatic migration path. A later,
+separately Founder-approved and controlled administrative mechanism must provision and execute
+migrations before API availability; until it succeeds, failure closed is intentional. Render's
+generated database owner URL is not attached to ordinary services.
 Founder-bootstrap, identity-admin, audit-reader, security-reader, backup, restoration, and emergency
 credentials remain in separately authorized, ephemeral processes and external custody.
 
@@ -33,7 +36,8 @@ presence and review shape of redacted references and fails closed for absent or 
 
 ## Consequences and limitations
 
-The Blueprint is infrastructure declaration, not deployment evidence. The region declaration records
+The Blueprint is a repository infrastructure declaration, not evidence that any resource was
+provisioned or deployed. No staging operational certification is claimed. The region declaration records
 a decision but does not prove provisioning or regional placement. Render administration,
 credentials, custody records, actual Auth0/Cloudflare/Better Stack configuration, monitoring
 delivery, backup media, recovery performance, and observed evidence are external. A successful

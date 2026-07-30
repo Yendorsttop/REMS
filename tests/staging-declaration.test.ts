@@ -12,38 +12,32 @@ const resources = blueprint
   .map((lines) => lines.join('\n'));
 
 describe('controlled staging declaration', () => {
-  it('declares isolated API, web, release, and paid database resources', () => {
-    for (const name of [
-      'rems-staging-api',
-      'rems-staging-web',
-      'rems-staging-release',
-      'rems-staging-postgresql',
-    ])
-      expect(blueprint).toContain(`name: ${name}`);
+  it('declares exactly the initial API, web, and paid database resources', () => {
+    expect(resources).toHaveLength(3);
+    expect(
+      resources.map(
+        (resource) => resource.match(/^[ ]{2}- (?:type: \S+\n[ ]{4})?name: (\S+)/m)?.[1],
+      ),
+    ).toEqual(['rems-staging-postgresql', 'rems-staging-api', 'rems-staging-web']);
     expect(blueprint).toMatch(/databases:[\s\S]*plan: (?!free\b)\S+/);
+    expect(blueprint.match(/^[ ]{4}plan: starter$/gm)).toHaveLength(2);
   });
 
-  it('selects each existing Docker target and disables automatic deployment', () => {
-    for (const target of ['api', 'web', 'migration'])
-      expect(blueprint).toContain(`value: ${target}`);
-    expect(blueprint.match(/autoDeploy: false/g)).toHaveLength(3);
-    expect(blueprint).toMatch(/name: rems-staging-release[\s\S]*numInstances: 0/);
+  it('selects the runtime Docker targets and disables automatic deployment', () => {
+    for (const target of ['api', 'web']) expect(blueprint).toContain(`value: ${target}`);
+    expect(blueprint.match(/autoDeploy: false/g)).toHaveLength(2);
   });
 
   it('pins every resource to the Founder-approved Oregon region', () => {
-    expect(resources).toHaveLength(4);
     for (const resource of resources) {
       expect(resource.match(/^[ ]{4}region: oregon$/gm)).toHaveLength(1);
       expect(resource).not.toMatch(/^[ ]{4}region: (?!oregon$).+/m);
     }
   });
 
-  it('keeps credentials externally injected and out of web', () => {
+  it('keeps the application credential externally injected and out of web', () => {
     expect(blueprint).toMatch(/key: DATABASE_URL\n\s+sync: false/);
-    expect(blueprint).toMatch(/key: MIGRATION_DATABASE_URL\n\s+sync: false/);
-    const web = blueprint
-      .split('name: rems-staging-web')[1]!
-      .split('name: rems-staging-release')[0]!;
+    const web = blueprint.split('name: rems-staging-web')[1]!;
     expect(web).not.toMatch(/DATABASE_URL|PASSWORD|SECRET|TOKEN/);
     for (const forbidden of [
       'FOUNDER_BOOTSTRAP_DATABASE_URL',
@@ -53,7 +47,14 @@ describe('controlled staging declaration', () => {
       'BACKUP_DATABASE_URL',
       'RESTORE_DATABASE_URL',
       'EMERGENCY',
+      'MIGRATION_DATABASE_URL',
     ])
       expect(blueprint).not.toContain(forbidden);
+  });
+
+  it('does not provision or automatically execute release migrations', () => {
+    expect(blueprint).not.toMatch(/rems-staging-release|value: migration/);
+    expect(blueprint).not.toMatch(/^\s*- type: (?:worker|cron)\s*$/m);
+    expect(blueprint).not.toMatch(/preDeployCommand|pre-deploy|prisma:migrate|numInstances/);
   });
 });

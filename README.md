@@ -56,10 +56,12 @@ Repository artifacts and disposable CI restoration/SBOM/scanning are readiness e
 
 ## FIP-005H controlled staging preparation
 
-`render.yaml` declares separate paid PostgreSQL, API, web, and normally suspended release-migration
-resources. Automatic deployment is disabled. The API accepts only an externally injected
-`rems_application` URL, migration execution only an externally injected `rems_migration_owner` URL,
-and web no database credential. No resource has been applied and no provider credential is present.
+`render.yaml` declares only paid PostgreSQL, API, and web resources. Render cannot declare a new
+background worker at zero instances, so the release-migration executor is omitted rather than run
+continuously. Automatic deployment is disabled. The API accepts only an externally injected
+`rems_application` URL, and web receives no database credential. Migrations require a later,
+separately Founder-approved administrative mechanism; until it succeeds, the API may intentionally
+remain unavailable. No resource has been applied and no provider credential is present.
 
 The runbook documents separate staging Auth0 with exact HTTPS boundaries and asymmetric signing,
 minimal Better Stack live/ready monitoring, optional staging-only Cloudflare DNS, encrypted logical
