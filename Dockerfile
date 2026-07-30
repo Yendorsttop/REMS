@@ -51,7 +51,10 @@ RUN find apps packages -type f -name '*.tsbuildinfo' -exec rm -f {} + \
  && node -e "Promise.all([import('@rems/config'),import('@rems/database'),import('@rems/observability'),import('@rems/red-001')]).then(([,database])=>new database.PrismaService())"
 
 FROM node:22-alpine AS api
-RUN apk add --no-cache wget
+RUN apk add --no-cache wget \
+ && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack /opt/yarn-v1.22.22 \
+ && rm -f /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
+      /usr/local/bin/pnpm /usr/local/bin/pnpx /usr/local/bin/yarn /usr/local/bin/yarnpkg
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=build --chown=node:node /prod/api /app

@@ -238,11 +238,21 @@ jobs:
           test "$(docker image inspect rems-web:${{ github.sha }} --format '{{.Config.User}}')" = node
           test -z "$(docker run --rm rems-api:${{ github.sha }} sh -c 'find /app -name .env -o -name .git -o -name "*.test.ts" | head -1')"
           docker run --rm --entrypoint sh rems-api:${{ github.sha }} -c '
+            for path in /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack /opt/yarn-v1.22.22; do
+              test ! -e "$path" || { echo "unused package-manager installation present: $path" >&2; exit 1; }
+            done
+            for executable in npm npx corepack pnpm pnpx yarn yarnpkg; do
+              test -z "$(command -v "$executable")" || { echo "unused package-manager executable present: $executable" >&2; exit 1; }
+            done
             for pattern in "vitest@*" "vite@*" "typescript@*" "@esbuild+*" "esbuild@*" "sharp@*" "postcss@*" "sigstore@*" "tar@*" "browserslist@*" "acorn@*" "webpack@*" "prettier@*" "prisma@*"; do
               if find /app/node_modules/.pnpm -mindepth 1 -maxdepth 1 -type d -name "$pattern" | grep -q .; then
                 echo "prohibited development package present: $pattern" >&2
                 exit 1
               fi
+            done
+            for vulnerable in "brace-expansion@2.0.2" "js-yaml@5.2.1" "picomatch@4.0.3" "sigstore@3.1.0" "tar@7.5.11"; do
+              test -z "$(find /app/node_modules/.pnpm -mindepth 1 -maxdepth 1 -type d -name "$vulnerable" -print -quit)" \
+                || { echo "vulnerable package version present: $vulnerable" >&2; exit 1; }
             done
             test -z "$(find /app -type f \( -name "*.ts" -o -name "*.map" \) -print -quit)"
             prisma_client="$(find /app/node_modules/.pnpm -path "*/node_modules/.prisma/client" -type d -print -quit)"
