@@ -27,4 +27,10 @@ FIP-005C role/grant definitions and database-level runtime audit immutability ar
 
 The API verifies OIDC JWT bearer tokens and explicitly maps the verified issuer-and-subject pair to an active RED-001 executive identity. Provider claims never grant REMS roles or permissions. Deployments must set `OIDC_ISSUER`, `OIDC_AUDIENCE`, and optionally `OIDC_ALLOWED_ALGORITHMS` (default `RS256`). No production provider is selected by this repository.
 
-Only link resolution is implemented. The runtime application has read-only access to external identity links. Link administration is intentionally absent; any future link lifecycle requires separately approved, actor-authorized RED-001 commands, audit events, and an appropriately controlled persistence authority.
+The runtime application has read-only access to external identity links. Controlled administration is described below and is never exposed through HTTP.
+
+## FIP-005E Founder ceremony and link administration
+
+Run `bootstrap-roles.sql`, then the additive `bootstrap-identity-admin-role.sql`, inject separate credentials outside source control, and apply migrations as the migration owner. Set `FOUNDER_BOOTSTRAP_DATABASE_URL` only in the ceremony process and run: `pnpm --filter @rems/database identity:admin -- bootstrap --confirm=ESTABLISH-INITIAL-FOUNDER --executive-id=<stable-id> --display-name=<name> --issuer=<verified-issuer> --subject=<verified-subject>`. The command accepts no provider authority claims, requires the `rems_founder_bootstrap` connection role, and refuses any prior or partial Founder state. After success, an authorized administrator must run `psql <administrative-url> -f packages/database/security/lockdown-founder-bootstrap-role.sql` to set the one-time role `NOLOGIN`; the CLI deliberately cannot lock its own role.
+
+After bootstrap, `add`, `suspend`, `reactivate`, `replace`, and `remove` require `IDENTITY_ADMIN_DATABASE_URL` for `rems_identity_admin`, an externally injected `REMS_ADMIN_BEARER_TOKEN`, and OIDC issuer/audience configuration. They require a verified active link to an active persisted Founder and protect the final usable Founder link. Never place either controlled database URL or credential in the API environment. This repository does not select a provider or prove production provisioning, lockdown, or ceremony completion. See ADR 0006.

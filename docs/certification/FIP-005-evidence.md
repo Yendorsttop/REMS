@@ -26,4 +26,12 @@ Implemented evidence includes an additive RED-001 external identity link, JOSE a
 
 This evidence does **not** establish production-provider provisioning, production configuration, deployment, operational monitoring, system-security rejection evidence, or full operational certification. Those remain pending Founder-reviewed infrastructure and deployment evidence.
 
-Link resolution is implemented with application-role `SELECT` only. Link administration is intentionally not implemented. Future link lifecycle operations require separately approved, actor-authorized RED-001 commands with audit events and an appropriate controlled persistence authority. The migration-owner connection seeds controlled integration fixtures; it is not a runtime credential or operational administration mechanism.
+Link resolution is implemented with application-role `SELECT` only. FIP-005E adds separately controlled link administration; the migration-owner connection remains only a fixture mechanism and is not a runtime or operational administration credential.
+
+## FIP-005E Founder bootstrap and governed links
+
+The additive artifacts implement a non-public, explicitly confirmed, one-time Founder ceremony and five Founder-authorized link lifecycle operations. Identity, Founder membership, exact issuer/subject link, and append-only evidence share a transaction. State gates, unique constraints, and rollback prevent repeat or partial establishment. Lifecycle authorization is derived only from verified OIDC identity resolved into active RED-001 Founder state; provider authority claims are ignored.
+
+The separately bootstrapped `rems_founder_bootstrap` role has only initial insert/read authority and is locked `NOLOGIN` by a separate post-ceremony administrative script. The ongoing `rems_identity_admin` role can read authorization records, govern links, and append audit evidence but cannot write identities, organizations, memberships, permissions, or audit history. Neither is an owner or API credential. CI provisions only disposable credentials, exercises fresh and additive migration paths, compares their security state, and verifies lockdown. Previously committed migrations are not edited.
+
+These source, migration, and CI artifacts are implementation evidence only. They do **not** prove production role provisioning, credential custody, provider configuration, successful Founder ceremony, deployment, or operational certification. Emergency recovery remains unimplemented pending a separate Founder-approved procedure.

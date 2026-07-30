@@ -9,6 +9,8 @@ databaseSuite('FIP-005C/FIP-005D restricted PostgreSQL roles', () => {
   let application: PrismaClient;
   let reader: PrismaClient;
   let migrationOwner: PrismaClient;
+  let identityAdmin: PrismaClient;
+  let founderBootstrap: PrismaClient;
   const eventId = randomUUID();
   const linkedExecutiveId = `security-link-${randomUUID().slice(0, 8)}`;
   const linkedSubject = `subject-${randomUUID()}`;
@@ -17,7 +19,19 @@ databaseSuite('FIP-005C/FIP-005D restricted PostgreSQL roles', () => {
     application = new PrismaClient({ datasourceUrl: process.env['APPLICATION_DATABASE_URL'] });
     reader = new PrismaClient({ datasourceUrl: process.env['AUDIT_READER_DATABASE_URL'] });
     migrationOwner = new PrismaClient({ datasourceUrl: process.env['MIGRATION_DATABASE_URL'] });
-    await Promise.all([application.$connect(), reader.$connect(), migrationOwner.$connect()]);
+    identityAdmin = new PrismaClient({
+      datasourceUrl: process.env['IDENTITY_ADMIN_DATABASE_URL'],
+    });
+    founderBootstrap = new PrismaClient({
+      datasourceUrl: process.env['FOUNDER_BOOTSTRAP_DATABASE_URL'],
+    });
+    await Promise.all([
+      application.$connect(),
+      reader.$connect(),
+      migrationOwner.$connect(),
+      identityAdmin.$connect(),
+      founderBootstrap.$connect(),
+    ]);
     await migrationOwner.$executeRaw`
       INSERT INTO "ExecutiveIdentity" (id, "displayName", "updatedAt")
       VALUES (${linkedExecutiveId}, 'Synthetic Security Link', now())`;
@@ -27,12 +41,32 @@ databaseSuite('FIP-005C/FIP-005D restricted PostgreSQL roles', () => {
   });
 
   afterAll(async () => {
+    await migrationOwner.auditEvent.deleteMany({
+      where: { OR: [{ id: eventId }, { actorId: linkedExecutiveId }] },
+    });
+    await migrationOwner.auditEvent.deleteMany({
+      where: { actorId: { startsWith: 'security-bootstrap-' } },
+    });
+    await migrationOwner.externalIdentityLink.deleteMany({
+      where: { executiveId: { startsWith: 'security-bootstrap-' } },
+    });
+    await migrationOwner.membership.deleteMany({
+      where: { executiveId: { startsWith: 'security-bootstrap-' } },
+    });
+    await migrationOwner.executiveIdentity.deleteMany({
+      where: { id: { startsWith: 'security-bootstrap-' } },
+    });
+    await migrationOwner.organizationUnit.deleteMany({
+      where: { id: { startsWith: 'security-bootstrap-' } },
+    });
     await migrationOwner.$executeRaw`DELETE FROM "ExternalIdentityLink" WHERE "executiveId" = ${linkedExecutiveId}`;
     await migrationOwner.$executeRaw`DELETE FROM "ExecutiveIdentity" WHERE id = ${linkedExecutiveId}`;
     await Promise.all([
       application.$disconnect(),
       reader.$disconnect(),
       migrationOwner.$disconnect(),
+      identityAdmin.$disconnect(),
+      founderBootstrap.$disconnect(),
     ]);
   });
 
@@ -117,5 +151,128 @@ databaseSuite('FIP-005C/FIP-005D restricted PostgreSQL roles', () => {
     await expect(
       reader.$queryRawUnsafe('SELECT * FROM "ExternalIdentityLink" LIMIT 1'),
     ).rejects.toThrow();
+  });
+
+  it('limits controlled identity administration and preserves audit immutability', async () => {
+    const privileges = await identityAdmin.$queryRaw<
+      Array<{ table_name: string; privilege_type: string }>
+    >`
+      SELECT table_name, privilege_type FROM information_schema.role_table_grants
+      WHERE grantee = 'rems_identity_admin'
+        AND table_name IN ('ExecutiveIdentity', 'OrganizationUnit', 'Membership', 'PermissionAssignment', 'ExternalIdentityLink', 'AuditEvent')
+      ORDER BY table_name, privilege_type`;
+    expect(privileges).toEqual([
+      { table_name: 'AuditEvent', privilege_type: 'INSERT' },
+      { table_name: 'AuditEvent', privilege_type: 'SELECT' },
+      { table_name: 'ExecutiveIdentity', privilege_type: 'SELECT' },
+      { table_name: 'ExternalIdentityLink', privilege_type: 'DELETE' },
+      { table_name: 'ExternalIdentityLink', privilege_type: 'INSERT' },
+      { table_name: 'ExternalIdentityLink', privilege_type: 'SELECT' },
+      { table_name: 'ExternalIdentityLink', privilege_type: 'UPDATE' },
+      { table_name: 'Membership', privilege_type: 'SELECT' },
+      { table_name: 'OrganizationUnit', privilege_type: 'SELECT' },
+      { table_name: 'PermissionAssignment', privilege_type: 'SELECT' },
+    ]);
+    for (const statement of [
+      `UPDATE "AuditEvent" SET "type" = 'forbidden' WHERE "id" = '${eventId}'`,
+      `DELETE FROM "AuditEvent" WHERE "id" = '${eventId}'`,
+      'TRUNCATE TABLE "AuditEvent"',
+      'TRUNCATE TABLE "ExternalIdentityLink"',
+    ])
+      await expect(identityAdmin.$executeRawUnsafe(statement)).rejects.toThrow();
+    const owners = await identityAdmin.$queryRaw<Array<{ tableowner: string }>>`
+      SELECT DISTINCT tableowner FROM pg_tables WHERE schemaname = 'public'
+        AND tablename IN ('ExecutiveIdentity', 'ExternalIdentityLink', 'AuditEvent')`;
+    expect(owners).toEqual([{ tableowner: 'rems_migration_owner' }]);
+  });
+
+  it('lets identity administration mutate a link and append evidence atomically', async () => {
+    const lifecycleEventId = randomUUID();
+    await identityAdmin.$transaction(async (tx) => {
+      await tx.externalIdentityLink.update({
+        where: { issuer_subject: { issuer: 'https://security.test', subject: linkedSubject } },
+        data: { active: false },
+      });
+      await tx.auditEvent.create({
+        data: {
+          id: lifecycleEventId,
+          occurredAt: new Date(),
+          actorId: linkedExecutiveId,
+          type: 'synthetic.external-link.suspend',
+          subjectId: linkedExecutiveId,
+          payload: { synthetic: true },
+        },
+      });
+    });
+    await expect(
+      identityAdmin.auditEvent.findUnique({ where: { id: lifecycleEventId } }),
+    ).resolves.toBeTruthy();
+    await identityAdmin.externalIdentityLink.update({
+      where: { issuer_subject: { issuer: 'https://security.test', subject: linkedSubject } },
+      data: { active: true },
+    });
+  });
+
+  it('allows only the bootstrap role to establish initial records atomically', async () => {
+    const suffix = randomUUID().slice(0, 8);
+    const executiveId = `security-bootstrap-${suffix}`;
+    const unitId = `security-bootstrap-${suffix}`;
+    const auditId = randomUUID();
+    await founderBootstrap.$transaction(async (tx) => {
+      await tx.organizationUnit.create({
+        data: { id: unitId, name: 'Synthetic Bootstrap', kind: 'ORGANIZATION' },
+      });
+      await tx.executiveIdentity.create({
+        data: { id: executiveId, displayName: 'Synthetic Bootstrap' },
+      });
+      await tx.membership.create({
+        data: { id: `founder-${suffix}`, executiveId, unitId, role: 'FOUNDER' },
+      });
+      await tx.externalIdentityLink.create({
+        data: { issuer: `https://bootstrap-${suffix}.test`, subject: 'synthetic', executiveId },
+      });
+      await tx.auditEvent.create({
+        data: {
+          id: auditId,
+          occurredAt: new Date(),
+          actorId: executiveId,
+          type: 'synthetic.bootstrap',
+          subjectId: executiveId,
+          payload: {},
+        },
+      });
+    });
+    await expect(
+      founderBootstrap.auditEvent.findUnique({ where: { id: auditId } }),
+    ).resolves.toBeTruthy();
+    await expect(
+      founderBootstrap.auditEvent.update({ where: { id: auditId }, data: { type: 'forbidden' } }),
+    ).rejects.toThrow();
+    await expect(
+      identityAdmin.executiveIdentity.create({
+        data: { id: `forbidden-${suffix}`, displayName: 'Forbidden' },
+      }),
+    ).rejects.toThrow();
+    await expect(
+      identityAdmin.organizationUnit.update({ where: { id: unitId }, data: { name: 'Forbidden' } }),
+    ).rejects.toThrow();
+    await expect(identityAdmin.membership.deleteMany({ where: { executiveId } })).rejects.toThrow();
+    await expect(
+      identityAdmin.permissionAssignment.create({
+        data: { id: `forbidden-${suffix}`, executiveId, permission: 'red001.authorization.manage' },
+      }),
+    ).rejects.toThrow();
+    const rollbackId = `security-bootstrap-rollback-${suffix}`;
+    await expect(
+      founderBootstrap.$transaction(async (tx) => {
+        await tx.executiveIdentity.create({
+          data: { id: rollbackId, displayName: 'Synthetic Rollback' },
+        });
+        throw new Error('synthetic ceremony failure');
+      }),
+    ).rejects.toThrow('synthetic ceremony failure');
+    await expect(
+      migrationOwner.executiveIdentity.findUnique({ where: { id: rollbackId } }),
+    ).resolves.toBeNull();
   });
 });
