@@ -21,23 +21,28 @@ RUN find apps packages -type f -name '*.tsbuildinfo' -exec rm -f {} + \
  && pnpm --filter @rems/api build \
  && pnpm --filter @rems/web build \
  && find /app -type f \( -name '*.test.ts' -o -name '*.map' \) -delete \
- && find /app -type d \( -name .cache -o -name coverage \) -prune -exec rm -rf '{}' +
+ && find /app -type d \( -name .cache -o -name coverage \) -prune -exec rm -rf '{}' + \
+ && pnpm --filter @rems/api deploy --prod /prod/api \
+ && source_prisma_client="$(find /app/node_modules/.pnpm -path '*/node_modules/.prisma/client' -type d -print -quit)" \
+ && target_prisma_package="$(find /prod/api/node_modules/.pnpm -path '*/node_modules/@prisma/client' -type d -print -quit)" \
+ && test -n "$source_prisma_client" -a -n "$target_prisma_package" \
+ && target_prisma_modules="$(dirname "$(dirname "$target_prisma_package")")" \
+ && mkdir -p "$target_prisma_modules/.prisma" \
+ && cp -R "$source_prisma_client" "$target_prisma_modules/.prisma/client" \
+ && find /prod/api -type f \( -name '*.map' -o -name '*.ts' \) -delete \
+ && test -s /prod/api/dist/main.js \
+ && cd /prod/api \
+ && node -e "Promise.all([import('@rems/config'),import('@rems/database'),import('@rems/observability'),import('@rems/red-001')]).then(([,database])=>new database.PrismaService())"
 
 FROM node:22-alpine AS api
-RUN apk add --no-cache wget && corepack enable
+RUN apk add --no-cache wget
 WORKDIR /app
 ENV NODE_ENV=production
-COPY --from=build --chown=node:node /app/node_modules ./node_modules
-COPY --from=build --chown=node:node /app/package.json /app/pnpm-workspace.yaml ./
-COPY --from=build --chown=node:node /app/apps/api/package.json ./apps/api/package.json
-COPY --from=build --chown=node:node /app/apps/api/node_modules ./apps/api/node_modules
-COPY --from=build --chown=node:node /app/apps/api/dist ./apps/api/dist
-COPY --from=build --chown=node:node /app/packages ./packages
-RUN find packages -type f ! -path '*/dist/*' ! -name package.json -delete && find packages -type d -empty -delete
+COPY --from=build --chown=node:node /prod/api /app
 USER node
 EXPOSE 3001
 HEALTHCHECK --interval=10s --timeout=3s --retries=3 CMD wget -q -O /dev/null http://127.0.0.1:3001/health/ready || exit 1
-CMD ["pnpm","--filter","@rems/api","exec","node","dist/main.js"]
+CMD ["node","dist/main.js"]
 
 FROM node:22-alpine AS web
 RUN apk add --no-cache wget && corepack enable
