@@ -68,6 +68,9 @@ importers:
       '@rems/red-001':
         specifier: workspace:*
         version: link:../../packages/red-001
+      jose:
+        specifier: ^6.0.8
+        version: 6.2.5
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2
@@ -2314,6 +2317,9 @@ packages:
   jiti@2.7.0:
     resolution: {integrity: sha512-AC/7JofJvZGrrneWNaEnJeOLUx+JlGt7tNa0wZiRPT4MY1wmfKjt2+6O2p2uz2+skll8OZZmJMNqeke7kKbNgQ==}
     hasBin: true
+
+  jose@6.2.5:
+    resolution: {integrity: sha512-2E5L2yRp03FnwreJLJX8/r7mHiZICCf8kG7fAsTWkSQTDAcc46NIZoQLKy+EJ8sPoJlxyS4OQR5H70LjIZZlIQ==}
 
   js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
@@ -5552,6 +5558,8 @@ snapshots:
 
   jiti@2.7.0:
     optional: true
+
+  jose@6.2.5: {}
 
   js-tokens@4.0.0: {}
 

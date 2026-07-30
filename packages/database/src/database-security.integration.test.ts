@@ -5,20 +5,35 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 const databaseSuite =
   process.env['RUN_DATABASE_SECURITY_INTEGRATION'] === '1' ? describe : describe.skip;
 
-databaseSuite('FIP-005C restricted PostgreSQL roles', () => {
+databaseSuite('FIP-005C/FIP-005D restricted PostgreSQL roles', () => {
   let application: PrismaClient;
   let reader: PrismaClient;
+  let migrationOwner: PrismaClient;
   const eventId = randomUUID();
+  const linkedExecutiveId = `security-link-${randomUUID().slice(0, 8)}`;
+  const linkedSubject = `subject-${randomUUID()}`;
 
   beforeAll(async () => {
     application = new PrismaClient({ datasourceUrl: process.env['APPLICATION_DATABASE_URL'] });
     reader = new PrismaClient({ datasourceUrl: process.env['AUDIT_READER_DATABASE_URL'] });
-    await application.$connect();
-    await reader.$connect();
+    migrationOwner = new PrismaClient({ datasourceUrl: process.env['MIGRATION_DATABASE_URL'] });
+    await Promise.all([application.$connect(), reader.$connect(), migrationOwner.$connect()]);
+    await migrationOwner.$executeRaw`
+      INSERT INTO "ExecutiveIdentity" (id, "displayName", "updatedAt")
+      VALUES (${linkedExecutiveId}, 'Synthetic Security Link', now())`;
+    await migrationOwner.$executeRaw`
+      INSERT INTO "ExternalIdentityLink" (id, issuer, subject, "executiveId", "updatedAt")
+      VALUES (${randomUUID()}::uuid, 'https://security.test', ${linkedSubject}, ${linkedExecutiveId}, now())`;
   });
 
   afterAll(async () => {
-    await Promise.all([application.$disconnect(), reader.$disconnect()]);
+    await migrationOwner.$executeRaw`DELETE FROM "ExternalIdentityLink" WHERE "executiveId" = ${linkedExecutiveId}`;
+    await migrationOwner.$executeRaw`DELETE FROM "ExecutiveIdentity" WHERE id = ${linkedExecutiveId}`;
+    await Promise.all([
+      application.$disconnect(),
+      reader.$disconnect(),
+      migrationOwner.$disconnect(),
+    ]);
   });
 
   it('allows the application role to append and read audit events', async () => {
@@ -64,5 +79,43 @@ databaseSuite('FIP-005C restricted PostgreSQL roles', () => {
     ).rejects.toThrow();
     await expect(reader.$executeRawUnsafe('DELETE FROM "AuditEvent"')).rejects.toThrow();
     await expect(reader.$executeRawUnsafe('TRUNCATE TABLE "AuditEvent"')).rejects.toThrow();
+  });
+
+  it('gives the application SELECT-only access to an administratively seeded link', async () => {
+    const owners = await application.$queryRaw<Array<{ tableowner: string }>>`
+      SELECT tableowner FROM pg_tables
+      WHERE schemaname = 'public' AND tablename = 'ExternalIdentityLink'`;
+    expect(owners).toEqual([{ tableowner: 'rems_migration_owner' }]);
+    const applicationPrivileges = await application.$queryRaw<Array<{ privilege_type: string }>>`
+      SELECT privilege_type FROM information_schema.role_table_grants
+      WHERE grantee = 'rems_application' AND table_name = 'ExternalIdentityLink'
+      ORDER BY privilege_type`;
+    expect(applicationPrivileges.map(({ privilege_type }) => privilege_type)).toEqual(['SELECT']);
+    await expect(
+      application.$queryRaw`
+        SELECT subject FROM "ExternalIdentityLink"
+        WHERE issuer = 'https://security.test' AND subject = ${linkedSubject}`,
+    ).resolves.toEqual([{ subject: linkedSubject }]);
+  });
+
+  it.each([
+    [
+      'INSERT',
+      `INSERT INTO "ExternalIdentityLink" (id, issuer, subject, "executiveId", "updatedAt") VALUES ('${randomUUID()}', 'https://forbidden.test', 'insert', '${linkedExecutiveId}', now())`,
+    ],
+    [
+      'UPDATE',
+      `UPDATE "ExternalIdentityLink" SET active = false WHERE subject = '${linkedSubject}'`,
+    ],
+    ['DELETE', `DELETE FROM "ExternalIdentityLink" WHERE subject = '${linkedSubject}'`],
+    ['TRUNCATE', 'TRUNCATE TABLE "ExternalIdentityLink"'],
+  ])('rejects application-role ExternalIdentityLink %s', async (_operation, statement) => {
+    await expect(application.$executeRawUnsafe(statement)).rejects.toThrow();
+  });
+
+  it('denies the audit reader all ExternalIdentityLink access', async () => {
+    await expect(
+      reader.$queryRawUnsafe('SELECT * FROM "ExternalIdentityLink" LIMIT 1'),
+    ).rejects.toThrow();
   });
 });

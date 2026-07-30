@@ -6,7 +6,8 @@ import type { INestApplication } from '@nestjs/common';
 import { AppModule, configureOpenApi } from './app.js';
 import { Red001Facade } from './app.js';
 import { Red001Service } from '@rems/red-001';
-import { PrismaService } from '@rems/database';
+import { PrismaExternalIdentityResolver, PrismaService } from '@rems/database';
+import { OidcTokenVerifier } from './auth.js';
 import {
   InMemoryAuditEventPort,
   InMemoryExecutiveIdentityRepository,
@@ -33,6 +34,10 @@ describe('RED-001 REST API', () => {
         .useValue(service)
         .overrideProvider(PrismaService)
         .useValue({})
+        .overrideProvider(OidcTokenVerifier)
+        .useValue({ verify: async () => ({ issuer: 'https://issuer.test', subject: 'founder' }) })
+        .overrideProvider(PrismaExternalIdentityResolver)
+        .useValue({ resolve: async () => 'synthetic-founder' })
         .compile()
     ).createNestApplication();
     configureOpenApi(app);
@@ -41,12 +46,12 @@ describe('RED-001 REST API', () => {
   it('creates and transitions a synthetic executive identity', async () => {
     await request(app.getHttpServer())
       .post('/v1/red-001/identities')
-      .set('x-actor-id', 'synthetic-founder')
+      .set('authorization', 'Bearer controlled-test-token')
       .send({ id: 'synthetic-executive', displayName: 'Synthetic Executive' })
       .expect(201);
     const response = await request(app.getHttpServer())
       .patch('/v1/red-001/identities/synthetic-executive/suspend')
-      .set('x-actor-id', 'synthetic-founder')
+      .set('authorization', 'Bearer controlled-test-token')
       .expect(200);
     expect(response.body.status).toBe('SUSPENDED');
     await app.close();

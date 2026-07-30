@@ -17,7 +17,8 @@
     "@rems/observability": "workspace:*",
     "@rems/red-001": "workspace:*",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "jose": "^6.0.8"
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.0",

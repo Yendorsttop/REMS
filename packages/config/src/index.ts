@@ -2,6 +2,8 @@ export interface RuntimeConfig {
   readonly port: number;
   readonly logLevel: string;
   readonly oidcIssuer?: string;
+  readonly oidcAudience?: string;
+  readonly oidcAlgorithms: readonly string[];
   readonly databaseUrl?: string;
 }
 export function loadConfig(environment: NodeJS.ProcessEnv = process.env): RuntimeConfig {
@@ -12,6 +14,8 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): Runtim
     port,
     logLevel: environment.LOG_LEVEL ?? 'info',
     ...(environment.OIDC_ISSUER ? { oidcIssuer: environment.OIDC_ISSUER } : {}),
+    ...(environment.OIDC_AUDIENCE ? { oidcAudience: environment.OIDC_AUDIENCE } : {}),
+    oidcAlgorithms: (environment.OIDC_ALLOWED_ALGORITHMS ?? 'RS256').split(',').filter(Boolean),
     ...(environment.DATABASE_URL ? { databaseUrl: environment.DATABASE_URL } : {}),
   };
 }

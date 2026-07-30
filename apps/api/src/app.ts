@@ -11,6 +11,7 @@ import {
   Post,
   Req,
 } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -20,7 +21,6 @@ import {
   SwaggerModule,
 } from '@nestjs/swagger';
 import type { INestApplication } from '@nestjs/common';
-import type { Request } from 'express';
 import { DomainError, Red001Service } from '@rems/red-001';
 import {
   PrismaAuditEventPort,
@@ -29,7 +29,9 @@ import {
   PrismaOrganizationRepository,
   PrismaService,
   PrismaTransactionContext,
+  PrismaExternalIdentityResolver,
 } from '@rems/database';
+import { OidcAuthenticationGuard, OidcTokenVerifier, type AuthenticatedRequest } from './auth.js';
 class CreateIdentityDto {
   @ApiProperty({ example: 'synthetic-executive' }) id!: string;
   @ApiProperty({ example: 'Synthetic Executive' }) displayName!: string;
@@ -54,14 +56,14 @@ export class Red001Facade extends Red001Service {
     super(identities, organizations, audit, authorization, undefined, undefined, transaction);
   }
 }
-type ActorRequest = Request & { headers: { 'x-actor-id'?: string } };
+type ActorRequest = AuthenticatedRequest;
 @ApiTags('RED-001')
 @ApiBearerAuth()
 @Controller('v1/red-001')
 export class Red001Controller {
   constructor(@Inject(Red001Facade) private readonly service: Red001Facade) {}
   private actor(req: ActorRequest): string {
-    const actor = req.headers['x-actor-id'];
+    const actor = req.executiveId;
     if (!actor) throw new HttpException('Authenticated actor context is required', 401);
     return actor;
   }
@@ -125,6 +127,9 @@ export class Red001Controller {
     PrismaOrganizationRepository,
     PrismaAuditEventPort,
     PrismaAuthorizationPort,
+    PrismaExternalIdentityResolver,
+    OidcTokenVerifier,
+    { provide: APP_GUARD, useClass: OidcAuthenticationGuard },
     Red001Facade,
   ],
 })
@@ -138,7 +143,7 @@ export function configureOpenApi(app: INestApplication) {
       type: 'http',
       scheme: 'bearer',
       bearerFormat: 'OIDC JWT',
-      description: 'OIDC-compatible seam; production verification is not configured',
+      description: 'Verified OIDC JWT; issuer and audience are deployment configuration',
     })
     .build();
   const document = SwaggerModule.createDocument(app, config);
