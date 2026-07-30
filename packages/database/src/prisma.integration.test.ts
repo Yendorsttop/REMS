@@ -59,7 +59,6 @@ databaseSuite('RED-001 Prisma/PostgreSQL persistence', () => {
   });
 
   afterAll(async () => {
-    await prisma.auditEvent.deleteMany({ where: { subjectId: { startsWith: prefix } } });
     await prisma.permissionAssignment.deleteMany({
       where: { executiveId: { startsWith: prefix } },
     });

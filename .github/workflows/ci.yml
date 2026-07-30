@@ -18,7 +18,12 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
-      DATABASE_URL: postgresql://rems_ci:ci_only@localhost:5432/rems_ci
+      # These credentials and role alterations exist only in this disposable CI service.
+      DATABASE_ADMIN_URL: postgresql://rems_ci:ci_only@localhost:5432/rems_ci
+      DATABASE_URL: postgresql://rems_application:rems_application_ci_only@localhost:5432/rems_ci
+      APPLICATION_DATABASE_URL: postgresql://rems_application:rems_application_ci_only@localhost:5432/rems_ci
+      AUDIT_READER_DATABASE_URL: postgresql://rems_audit_reader:rems_audit_reader_ci_only@localhost:5432/rems_ci
+      MIGRATION_DATABASE_URL: postgresql://rems_migration_owner:rems_migration_owner_ci_only@localhost:5432/rems_ci
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -30,12 +35,44 @@ jobs:
       - run: pnpm exec prettier --check .
       - run: pnpm lint
       - run: pnpm typecheck
+      - name: Bootstrap disposable database roles
+        env:
+          PGPASSWORD: ci_only
+        run: |
+          psql "$DATABASE_ADMIN_URL" -f packages/database/security/bootstrap-roles.sql
+          psql "$DATABASE_ADMIN_URL" <<'SQL'
+          ALTER ROLE rems_migration_owner PASSWORD 'rems_migration_owner_ci_only';
+          ALTER ROLE rems_application PASSWORD 'rems_application_ci_only';
+          ALTER ROLE rems_audit_reader PASSWORD 'rems_audit_reader_ci_only';
+          ALTER ROLE rems_emergency_admin PASSWORD 'rems_emergency_admin_ci_only';
+          SQL
       - name: Apply database migrations
+        env:
+          DATABASE_URL: ${{ env.MIGRATION_DATABASE_URL }}
         run: pnpm --filter @rems/database prisma:migrate:deploy
       - run: pnpm db:validate
       - run: pnpm test
       - name: Run PostgreSQL integration tests
         run: RUN_DATABASE_INTEGRATION=1 pnpm test
+      - name: Verify restricted PostgreSQL roles
+        run: pnpm test:db-security
+      - name: Verify additive upgrade from the immutable foundation migration
+        env:
+          UPGRADE_ADMIN_URL: postgresql://rems_ci:ci_only@localhost:5432/rems_ci_upgrade
+          UPGRADE_MIGRATION_URL: postgresql://rems_migration_owner:rems_migration_owner_ci_only@localhost:5432/rems_ci_upgrade
+        run: |
+          psql "$DATABASE_ADMIN_URL" -c 'CREATE DATABASE rems_ci_upgrade'
+          psql "$UPGRADE_ADMIN_URL" -f packages/database/prisma/migrations/20260729000000_red_001_foundation/migration.sql
+          DATABASE_URL="$UPGRADE_ADMIN_URL" pnpm --filter @rems/database exec prisma migrate resolve --schema prisma/schema.prisma --applied 20260729000000_red_001_foundation
+          psql "$UPGRADE_ADMIN_URL" -f packages/database/security/bootstrap-roles.sql
+          DATABASE_URL="$UPGRADE_MIGRATION_URL" pnpm --filter @rems/database prisma:migrate:deploy
+          DATABASE_URL="postgresql://rems_application:rems_application_ci_only@localhost:5432/rems_ci_upgrade" \
+          APPLICATION_DATABASE_URL="postgresql://rems_application:rems_application_ci_only@localhost:5432/rems_ci_upgrade" \
+          AUDIT_READER_DATABASE_URL="postgresql://rems_audit_reader:rems_audit_reader_ci_only@localhost:5432/rems_ci_upgrade" \
+          pnpm test:db-security
+          psql "$DATABASE_ADMIN_URL" -At -f packages/database/security/inspect-security-state.sql > /tmp/fresh-security-state
+          psql "$UPGRADE_ADMIN_URL" -At -f packages/database/security/inspect-security-state.sql > /tmp/upgrade-security-state
+          diff -u /tmp/fresh-security-state /tmp/upgrade-security-state
       - run: pnpm build
       - run: pnpm test:e2e
       - run: git diff --check

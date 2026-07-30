@@ -8,6 +8,7 @@
     "typecheck": "tsc -b",
     "db:validate": "pnpm --filter @rems/database prisma:validate",
     "test": "vitest run",
+    "test:db-security": "RUN_DATABASE_INTEGRATION=1 RUN_DATABASE_SECURITY_INTEGRATION=1 vitest run packages/database/src/database-security.integration.test.ts packages/database/src/prisma.integration.test.ts",
     "build": "pnpm -r --if-present build",
     "test:e2e": "playwright test",
     "clean": "find . -name dist -type d -prune -exec rm -rf {} +"
