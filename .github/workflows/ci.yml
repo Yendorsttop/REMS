@@ -43,9 +43,9 @@ jobs:
         env:
           PGPASSWORD: ci_only
         run: |
-          psql "$DATABASE_ADMIN_URL" -f packages/database/security/bootstrap-roles.sql
-          psql "$DATABASE_ADMIN_URL" -f packages/database/security/bootstrap-identity-admin-role.sql
-          psql "$DATABASE_ADMIN_URL" <<'SQL'
+          psql -v ON_ERROR_STOP=1 "$DATABASE_ADMIN_URL" -f packages/database/security/bootstrap-roles.sql
+          psql -v ON_ERROR_STOP=1 "$DATABASE_ADMIN_URL" -f packages/database/security/bootstrap-identity-admin-role.sql
+          psql -v ON_ERROR_STOP=1 "$DATABASE_ADMIN_URL" <<'SQL'
           ALTER ROLE rems_migration_owner PASSWORD 'rems_migration_owner_ci_only';
           ALTER ROLE rems_application PASSWORD 'rems_application_ci_only';
           ALTER ROLE rems_audit_reader PASSWORD 'rems_audit_reader_ci_only';
@@ -59,14 +59,14 @@ jobs:
         run: pnpm --filter @rems/database prisma:migrate:deploy
       - name: Bootstrap security-evidence reader after its table exists
         run: |
-          psql "$DATABASE_ADMIN_URL" -f packages/database/security/bootstrap-security-reader-role.sql
-          psql "$DATABASE_ADMIN_URL" -f packages/database/security/bootstrap-backup-role.sql
-          psql "$DATABASE_ADMIN_URL" -c "ALTER ROLE rems_security_reader PASSWORD 'rems_security_reader_ci_only'"
-          psql "$DATABASE_ADMIN_URL" -c "ALTER ROLE rems_backup PASSWORD 'rems_backup_ci_only'"
-          test "$(psql "$BACKUP_DATABASE_URL" -Atc 'SELECT count(*) >= 0 FROM "ExecutiveIdentity"')" = t
-          ! psql "$BACKUP_DATABASE_URL" -c 'CREATE TABLE forbidden_backup(id int)'
-          ! psql "$BACKUP_DATABASE_URL" -c 'TRUNCATE TABLE "AuditEvent"'
-          ! psql "$BACKUP_DATABASE_URL" -c 'UPDATE "ExecutiveIdentity" SET "displayName"='"'"'forbidden'"'"''
+          psql -v ON_ERROR_STOP=1 "$DATABASE_ADMIN_URL" -f packages/database/security/bootstrap-security-reader-role.sql
+          psql -v ON_ERROR_STOP=1 "$DATABASE_ADMIN_URL" -f packages/database/security/bootstrap-backup-role.sql
+          psql -v ON_ERROR_STOP=1 "$DATABASE_ADMIN_URL" -c "ALTER ROLE rems_security_reader PASSWORD 'rems_security_reader_ci_only'"
+          psql -v ON_ERROR_STOP=1 "$DATABASE_ADMIN_URL" -c "ALTER ROLE rems_backup PASSWORD 'rems_backup_ci_only'"
+          test "$(psql -v ON_ERROR_STOP=1 "$BACKUP_DATABASE_URL" -Atc 'SELECT count(*) >= 0 FROM "ExecutiveIdentity"')" = t
+          ! psql -v ON_ERROR_STOP=1 "$BACKUP_DATABASE_URL" -c 'CREATE TABLE forbidden_backup(id int)'
+          ! psql -v ON_ERROR_STOP=1 "$BACKUP_DATABASE_URL" -c 'TRUNCATE TABLE "AuditEvent"'
+          ! psql -v ON_ERROR_STOP=1 "$BACKUP_DATABASE_URL" -c 'UPDATE "ExecutiveIdentity" SET "displayName"='"'"'forbidden'"'"''
       - run: pnpm db:validate
       - run: pnpm test
       - name: Run PostgreSQL integration tests
@@ -78,14 +78,14 @@ jobs:
           UPGRADE_ADMIN_URL: postgresql://rems_ci:ci_only@localhost:5432/rems_ci_upgrade
           UPGRADE_MIGRATION_URL: postgresql://rems_migration_owner:rems_migration_owner_ci_only@localhost:5432/rems_ci_upgrade
         run: |
-          psql "$DATABASE_ADMIN_URL" -c 'CREATE DATABASE rems_ci_upgrade'
-          psql "$UPGRADE_ADMIN_URL" -f packages/database/prisma/migrations/20260729000000_red_001_foundation/migration.sql
+          psql -v ON_ERROR_STOP=1 "$DATABASE_ADMIN_URL" -c 'CREATE DATABASE rems_ci_upgrade'
+          psql -v ON_ERROR_STOP=1 "$UPGRADE_ADMIN_URL" -f packages/database/prisma/migrations/20260729000000_red_001_foundation/migration.sql
           DATABASE_URL="$UPGRADE_ADMIN_URL" pnpm --filter @rems/database exec prisma migrate resolve --schema prisma/schema.prisma --applied 20260729000000_red_001_foundation
-          psql "$UPGRADE_ADMIN_URL" -f packages/database/security/bootstrap-roles.sql
-          psql "$UPGRADE_ADMIN_URL" -f packages/database/security/bootstrap-identity-admin-role.sql
+          psql -v ON_ERROR_STOP=1 "$UPGRADE_ADMIN_URL" -f packages/database/security/bootstrap-roles.sql
+          psql -v ON_ERROR_STOP=1 "$UPGRADE_ADMIN_URL" -f packages/database/security/bootstrap-identity-admin-role.sql
           DATABASE_URL="$UPGRADE_MIGRATION_URL" pnpm --filter @rems/database prisma:migrate:deploy
-          psql "$UPGRADE_ADMIN_URL" -f packages/database/security/bootstrap-security-reader-role.sql
-          psql "$UPGRADE_ADMIN_URL" -f packages/database/security/bootstrap-backup-role.sql
+          psql -v ON_ERROR_STOP=1 "$UPGRADE_ADMIN_URL" -f packages/database/security/bootstrap-security-reader-role.sql
+          psql -v ON_ERROR_STOP=1 "$UPGRADE_ADMIN_URL" -f packages/database/security/bootstrap-backup-role.sql
           DATABASE_URL="postgresql://rems_application:rems_application_ci_only@localhost:5432/rems_ci_upgrade" \
           APPLICATION_DATABASE_URL="postgresql://rems_application:rems_application_ci_only@localhost:5432/rems_ci_upgrade" \
           AUDIT_READER_DATABASE_URL="postgresql://rems_audit_reader:rems_audit_reader_ci_only@localhost:5432/rems_ci_upgrade" \
@@ -94,38 +94,63 @@ jobs:
           FOUNDER_BOOTSTRAP_DATABASE_URL="postgresql://rems_founder_bootstrap:rems_founder_bootstrap_ci_only@localhost:5432/rems_ci_upgrade" \
           SECURITY_READER_DATABASE_URL="postgresql://rems_security_reader:rems_security_reader_ci_only@localhost:5432/rems_ci_upgrade" \
           pnpm test:db-security
-          psql "$DATABASE_ADMIN_URL" -At -f packages/database/security/inspect-security-state.sql > /tmp/fresh-security-state
-          psql "$UPGRADE_ADMIN_URL" -At -f packages/database/security/inspect-security-state.sql > /tmp/upgrade-security-state
+          psql -v ON_ERROR_STOP=1 "$DATABASE_ADMIN_URL" -At -f packages/database/security/inspect-security-state.sql > /tmp/fresh-security-state
+          psql -v ON_ERROR_STOP=1 "$UPGRADE_ADMIN_URL" -At -f packages/database/security/inspect-security-state.sql > /tmp/upgrade-security-state
           diff -u /tmp/fresh-security-state /tmp/upgrade-security-state
       - name: Verify vendor-neutral backup and restoration
         env:
           BACKUP_FILE: /tmp/rems-ci.dump
           RESTORE_DATABASE_URL: postgresql://rems_migration_owner:rems_migration_owner_ci_only@localhost:5432/rems_ci_restore
+          RESTORE_APPLICATION_URL: postgresql://rems_application:rems_application_ci_only@localhost:5432/rems_ci_restore
+          RESTORE_AUDIT_READER_URL: postgresql://rems_audit_reader:rems_audit_reader_ci_only@localhost:5432/rems_ci_restore
+          RESTORE_SECURITY_READER_URL: postgresql://rems_security_reader:rems_security_reader_ci_only@localhost:5432/rems_ci_restore
+          RESTORE_BACKUP_URL: postgresql://rems_backup:rems_backup_ci_only@localhost:5432/rems_ci_restore
         run: |
-          psql "$MIGRATION_DATABASE_URL" <<'SQL'
-          INSERT INTO "ExecutiveIdentity" (id,"displayName","updatedAt") VALUES ('restore-founder','Restore Founder',now());
-          INSERT INTO "OrganizationUnit" (id,name,kind,"updatedAt") VALUES ('restore-org','Restore Org','ORGANIZATION',now());
-          INSERT INTO "Membership" (id,"executiveId","unitId",role,"updatedAt") VALUES ('restore-membership','restore-founder','restore-org','FOUNDER',now());
-          INSERT INTO "ExternalIdentityLink" (id,issuer,subject,"executiveId","updatedAt") VALUES ('11111111-1111-4111-8111-111111111111','https://restore.test','restore-subject','restore-founder',now());
-          INSERT INTO "AuditEvent" (id,"occurredAt","actorId",type,"subjectId",payload) VALUES ('restore-audit',now(),'restore-founder','restore.verification','restore-founder','{}');
-          INSERT INTO "SystemSecurityEvidence" (id,"occurredAt","eventType",outcome,"reasonCode","correlationId") VALUES ('22222222-2222-4222-8222-222222222222',now(),'AUTHENTICATION_REJECTED','DENIED','MALFORMED_TOKEN','restore-verification');
+          psql -v ON_ERROR_STOP=1 "$MIGRATION_DATABASE_URL" <<'SQL'
+          INSERT INTO "ExecutiveIdentity" (id,"displayName","updatedAt")
+          VALUES ('restore-founder','Restore Founder','2026-07-30T00:00:00Z');
+          INSERT INTO "OrganizationUnit" (id,name,kind)
+          VALUES ('restore-org','Restore Org','ORGANIZATION');
+          INSERT INTO "Membership" (id,"executiveId","unitId",role)
+          VALUES ('restore-membership','restore-founder','restore-org','FOUNDER');
+          INSERT INTO "ExternalIdentityLink" (id,issuer,subject,"executiveId","updatedAt")
+          VALUES ('11111111-1111-4111-8111-111111111111','https://restore.test','restore-subject','restore-founder','2026-07-30T00:00:01Z');
+          INSERT INTO "AuditEvent" (id,"occurredAt","actorId",type,"subjectId",payload)
+          VALUES ('33333333-3333-4333-8333-333333333333','2026-07-30T00:00:02Z','restore-founder','restore.verification','restore-founder','{}'::jsonb);
+          INSERT INTO "SystemSecurityEvidence" (id,"occurredAt","eventType",outcome,"reasonCode","correlationId")
+          VALUES ('22222222-2222-4222-8222-222222222222','2026-07-30T00:00:03Z','AUTHENTICATION_REJECTED','DENIED','MALFORMED_TOKEN','restore-verification');
           SQL
           ./scripts/operations/backup.sh
-          psql "$DATABASE_ADMIN_URL" -c 'CREATE DATABASE rems_ci_restore OWNER rems_migration_owner'
+          psql -v ON_ERROR_STOP=1 "$DATABASE_ADMIN_URL" -c 'CREATE DATABASE rems_ci_restore OWNER rems_migration_owner'
           ./scripts/operations/restore.sh
-          psql "postgresql://rems_ci:ci_only@localhost:5432/rems_ci_restore" -f packages/database/security/bootstrap-roles.sql
-          psql "postgresql://rems_ci:ci_only@localhost:5432/rems_ci_restore" -f packages/database/security/bootstrap-identity-admin-role.sql
-          psql "postgresql://rems_ci:ci_only@localhost:5432/rems_ci_restore" -f packages/database/security/bootstrap-security-reader-role.sql
-          psql "postgresql://rems_ci:ci_only@localhost:5432/rems_ci_restore" -f packages/database/security/bootstrap-backup-role.sql
-          test "$(psql "$RESTORE_DATABASE_URL" -Atc 'SELECT count(*) FROM "ExecutiveIdentity" WHERE id='"'"'restore-founder'"'"'')" = 1
-          test "$(psql "$RESTORE_DATABASE_URL" -Atc 'SELECT count(*) FROM "ExternalIdentityLink" WHERE subject='"'"'restore-subject'"'"'')" = 1
-          test "$(psql "$RESTORE_DATABASE_URL" -Atc 'SELECT count(*) FROM "AuditEvent" WHERE id='"'"'restore-audit'"'"'')" = 1
-          test "$(psql "$RESTORE_DATABASE_URL" -Atc 'SELECT count(*) FROM "SystemSecurityEvidence" WHERE "correlationId"='"'"'restore-verification'"'"'')" = 1
+          psql -v ON_ERROR_STOP=1 "postgresql://rems_ci:ci_only@localhost:5432/rems_ci_restore" -f packages/database/security/bootstrap-roles.sql
+          psql -v ON_ERROR_STOP=1 "postgresql://rems_ci:ci_only@localhost:5432/rems_ci_restore" -f packages/database/security/bootstrap-identity-admin-role.sql
+          psql -v ON_ERROR_STOP=1 "postgresql://rems_ci:ci_only@localhost:5432/rems_ci_restore" -f packages/database/security/bootstrap-security-reader-role.sql
+          psql -v ON_ERROR_STOP=1 "postgresql://rems_ci:ci_only@localhost:5432/rems_ci_restore" -f packages/database/security/bootstrap-backup-role.sql
+          test "$(psql -v ON_ERROR_STOP=1 "$RESTORE_DATABASE_URL" -Atc 'SELECT count(*) FROM "ExecutiveIdentity" WHERE id='"'"'restore-founder'"'"'')" = 1
+          test "$(psql -v ON_ERROR_STOP=1 "$RESTORE_DATABASE_URL" -Atc 'SELECT count(*) FROM "OrganizationUnit" WHERE id='"'"'restore-org'"'"'')" = 1
+          test "$(psql -v ON_ERROR_STOP=1 "$RESTORE_DATABASE_URL" -Atc 'SELECT count(*) FROM "Membership" WHERE id='"'"'restore-membership'"'"' AND "executiveId"='"'"'restore-founder'"'"' AND "unitId"='"'"'restore-org'"'"' AND role='"'"'FOUNDER'"'"'')" = 1
+          test "$(psql -v ON_ERROR_STOP=1 "$RESTORE_DATABASE_URL" -Atc 'SELECT count(*) FROM "ExternalIdentityLink" WHERE subject='"'"'restore-subject'"'"'')" = 1
+          test "$(psql -v ON_ERROR_STOP=1 "$RESTORE_DATABASE_URL" -Atc 'SELECT count(*) FROM "AuditEvent" WHERE id='"'"'33333333-3333-4333-8333-333333333333'"'"'')" = 1
+          test "$(psql -v ON_ERROR_STOP=1 "$RESTORE_DATABASE_URL" -Atc 'SELECT count(*) FROM "SystemSecurityEvidence" WHERE "correlationId"='"'"'restore-verification'"'"'')" = 1
+          test "$(psql -v ON_ERROR_STOP=1 "$RESTORE_DATABASE_URL" -Atc "SELECT count(*) FROM pg_tables WHERE schemaname='public' AND tableowner='rems_migration_owner' AND tablename IN ('ExecutiveIdentity','OrganizationUnit','Membership','ExternalIdentityLink','AuditEvent','SystemSecurityEvidence')")" = 6
+          test "$(psql -v ON_ERROR_STOP=1 "$RESTORE_DATABASE_URL" -Atc "SELECT has_table_privilege('rems_application','public.\"ExecutiveIdentity\"','SELECT') AND has_table_privilege('rems_application','public.\"AuditEvent\"','INSERT') AND NOT has_table_privilege('rems_application','public.\"AuditEvent\"','UPDATE') AND has_table_privilege('rems_audit_reader','public.\"AuditEvent\"','SELECT') AND has_table_privilege('rems_security_reader','public.\"SystemSecurityEvidence\"','SELECT')")" = t
+          test "$(psql -v ON_ERROR_STOP=1 "$RESTORE_APPLICATION_URL" -Atc 'SELECT count(*) FROM "ExecutiveIdentity" WHERE id='"'"'restore-founder'"'"'')" = 1
+          test "$(psql -v ON_ERROR_STOP=1 "$RESTORE_AUDIT_READER_URL" -Atc 'SELECT count(*) FROM "AuditEvent" WHERE id='"'"'33333333-3333-4333-8333-333333333333'"'"'')" = 1
+          test "$(psql -v ON_ERROR_STOP=1 "$RESTORE_SECURITY_READER_URL" -Atc 'SELECT count(*) FROM "SystemSecurityEvidence" WHERE id='"'"'22222222-2222-4222-8222-222222222222'"'"'')" = 1
+          test "$(psql -v ON_ERROR_STOP=1 "$RESTORE_BACKUP_URL" -Atc 'SELECT count(*) FROM "ExternalIdentityLink" WHERE id='"'"'11111111-1111-4111-8111-111111111111'"'"'')" = 1
+          ! psql -v ON_ERROR_STOP=1 "$RESTORE_APPLICATION_URL" -c 'UPDATE "AuditEvent" SET type='"'"'forbidden'"'"' WHERE id='"'"'33333333-3333-4333-8333-333333333333'"'"''
+          ! psql -v ON_ERROR_STOP=1 "$RESTORE_APPLICATION_URL" -c 'TRUNCATE TABLE "AuditEvent"'
+          ! psql -v ON_ERROR_STOP=1 "$RESTORE_APPLICATION_URL" -c 'UPDATE "SystemSecurityEvidence" SET "reasonCode"='"'"'INVALID_SIGNATURE'"'"' WHERE id='"'"'22222222-2222-4222-8222-222222222222'"'"''
+          ! psql -v ON_ERROR_STOP=1 "$RESTORE_AUDIT_READER_URL" -c 'DELETE FROM "AuditEvent" WHERE id='"'"'33333333-3333-4333-8333-333333333333'"'"''
+          ! psql -v ON_ERROR_STOP=1 "$RESTORE_SECURITY_READER_URL" -c 'DELETE FROM "SystemSecurityEvidence" WHERE id='"'"'22222222-2222-4222-8222-222222222222'"'"''
+          ! psql -v ON_ERROR_STOP=1 "$RESTORE_BACKUP_URL" -c 'UPDATE "ExecutiveIdentity" SET "displayName"='"'"'forbidden'"'"' WHERE id='"'"'restore-founder'"'"''
+          ! psql -v ON_ERROR_STOP=1 "$RESTORE_BACKUP_URL" -c 'CREATE TABLE forbidden_restore_backup(id int)'
           rm -f "$BACKUP_FILE"
       - name: Lock down one-time Founder bootstrap login
         run: |
-          psql "$DATABASE_ADMIN_URL" -f packages/database/security/lockdown-founder-bootstrap-role.sql
-          test "$(psql "$DATABASE_ADMIN_URL" -Atc "SELECT rolcanlogin FROM pg_roles WHERE rolname = 'rems_founder_bootstrap'")" = "f"
+          psql -v ON_ERROR_STOP=1 "$DATABASE_ADMIN_URL" -f packages/database/security/lockdown-founder-bootstrap-role.sql
+          test "$(psql -v ON_ERROR_STOP=1 "$DATABASE_ADMIN_URL" -Atc "SELECT rolcanlogin FROM pg_roles WHERE rolname = 'rems_founder_bootstrap'")" = "f"
       - run: pnpm build
       - name: Build and verify non-root production containers
         run: |
