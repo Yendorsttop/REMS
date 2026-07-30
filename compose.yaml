@@ -1,3 +1,4 @@
+# NON-PRODUCTION convenience stack. Never reuse these credentials or topology.
 services:
   postgres:
     image: postgres:17-alpine
@@ -16,7 +17,12 @@ services:
   api:
     build: { context: ., target: api }
     environment:
-      { DATABASE_URL: 'postgresql://rems_local:local_only@postgres:5432/rems', PORT: '3001' }
+      {
+        NODE_ENV: 'development',
+        DATABASE_URL: 'postgresql://rems_local:local_only@postgres:5432/rems',
+        HOST: '0.0.0.0',
+        PORT: '3001',
+      }
     ports: ['3001:3001']
     depends_on: { postgres: { condition: service_healthy } }
   web:
