@@ -1,5 +1,11 @@
 # ADR 0009: Controlled Render staging and external operational evidence
 
+## Addendum: manual database initialization
+
+Initialization is a `workflow_dispatch` restricted to an exact reviewed `main` SHA and protected by `rems-staging-database`. A credential-free job validates branch, SHA, exact confirmation, and API/web suspension; only then may the protected job obtain staging administrative, migration-owner, application, and role-password secrets. Existing administrative bootstraps remain separate from immutable Prisma migrations, followed by checksum and grant verification.
+
+This is not a Render hook, release worker, deployment, backup, Founder ceremony, or automatic migration path. Provider inability to create required roles is a hard hosting-authority failure, not grounds to collapse role separation. Workflow presence and a later staging run do not establish operational certification.
+
 ## Status
 
 Founder-approved repository preparation; no staging resources have been provisioned or deployed.

@@ -1,5 +1,9 @@
 # FIP-005H external staging evidence template
 
+## Controlled database initialization record
+
+Record only the workflow run URL, reviewed full commit SHA, approval reference, timestamps, and pass/fail status of the sanitized preflight, migration, checksum, and security checks. Never paste database output, host/user/port details, URLs, passwords, logs, dumps, or secret values. Confirm API and web remained suspended. Workflow presence is not migration evidence; a successful hosted run is staging evidence only, not operational certification.
+
 Copy each section to the named file in an access-controlled external evidence directory. Do not
 commit completed evidence, credentials, tokens, claims, personal data, provider exports, database
 URLs, or backup media. The repository gate intentionally rejects these untouched templates.

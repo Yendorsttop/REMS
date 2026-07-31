@@ -1,5 +1,9 @@
 # REP Entertainment Management System (REMS)
 
+## Controlled staging database initialization
+
+A manual-only initializer is protected by the `rems-staging-database` GitHub environment. It requires the exact `main` SHA, `INITIALIZE REMS STAGING DATABASE`, and confirmation API/web are suspended before protected secrets become accessible. It bootstraps roles, migrates only as `rems_migration_owner`, and verifies sanitized security state; it does not deploy, call Render, back up/restore, or run the Founder ceremony. See the runbook for its exact secret contract. Workflow presence is not migration evidence, and no operational certification is claimed.
+
 FIP-005F adds minimized append-only system-security evidence for material authentication rejections.
 It is separate from RED-001 audit, has no fabricated executive actor, and keeps responses generic.
 See [ADR 0007](docs/adr/0007-append-only-system-security-evidence.md).
