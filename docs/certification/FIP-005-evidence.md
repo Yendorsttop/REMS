@@ -1,5 +1,11 @@
 # FIP-005 Certification Evidence
 
+## FIP-005H manual staging database initializer
+
+The manual-only, environment-protected initializer adds repository evidence for exact-main authorization, provider-authority preflight, environment-only credentials, separate administrative bootstrap and migration-owner execution, immutable checksum comparison, and sanitized grant verification. Static tests reject automatic triggers, deploy/provider calls, ceremony paths, artifacts, floating Action tags, and historical artifact changes.
+
+It has not been dispatched; no environment or secret was configured. Presence is not migration evidence. A successful hosted run would be staging evidence only, not API/web readiness, OIDC, Founder ceremony, backup, production deployment, or operational certification.
+
 ## FIP-005F repository evidence
 
 The additive constrained schema, least-privilege roles, typed adapter, generic-denial integration,

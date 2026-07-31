@@ -1,5 +1,35 @@
 # FIP-005H controlled staging runbook
 
+## Manual database initializer (prepared, not executed)
+
+The repository includes `.github/workflows/staging-database-initialize.yml`. It is manual-only for the existing `rems_staging` database; its presence is not migration evidence. The workflow must be reviewed and merged to `main` before it can be manually selected at that exact reviewed commit. Do not dispatch it as part of repository preparation.
+
+Before adding secrets, create a GitHub environment named exactly `rems-staging-database` under **Settings → Environments**, require reviewers, prevent self-review, and restrict deployment branches to `main`. Protection comes first so no credential is available to an unreviewed job. Creating or configuring the environment is a separate authorized operator action.
+
+After protection is reviewed, add these environment secrets (never repository variables or repository secrets):
+
+- `REMS_STAGING_ADMIN_DATABASE_URL`: Render-generated staging owner/administrative connection.
+- `REMS_STAGING_MIGRATION_DATABASE_URL`: exact user `rems_migration_owner`.
+- `REMS_STAGING_APPLICATION_DATABASE_URL`: exact user `rems_application`.
+- `REMS_STAGING_MIGRATION_ROLE_PASSWORD`
+- `REMS_STAGING_APPLICATION_ROLE_PASSWORD`
+- `REMS_STAGING_AUDIT_READER_ROLE_PASSWORD`
+- `REMS_STAGING_EMERGENCY_ADMIN_ROLE_PASSWORD`
+- `REMS_STAGING_FOUNDER_BOOTSTRAP_ROLE_PASSWORD`
+- `REMS_STAGING_IDENTITY_ADMIN_ROLE_PASSWORD`
+- `REMS_STAGING_SECURITY_READER_ROLE_PASSWORD`
+- `REMS_STAGING_BACKUP_ROLE_PASSWORD`
+
+Never record values in Git, documentation, chat, tickets, command arguments, or evidence. Separate password secrets let the immutable password-free bootstraps remain unchanged; values pass only in a child-process environment and psql `\getenv`.
+
+At dispatch, enter the full 40-character commit SHA, exact phrase `INITIALIZE REMS STAGING DATABASE`, and affirm that API and web are suspended. A credential-free job rejects a non-`main` ref, SHA mismatch, wrong phrase, or false acknowledgement before the protected job accesses secrets.
+
+The sequence is: sanitized PostgreSQL 17/provider-authority preflight; `bootstrap-roles.sql`; `bootstrap-identity-admin-role.sql`; environment-only password provisioning; Prisma deploy as `rems_migration_owner`; security-reader and backup-role bootstraps; password reconciliation; then ownership, checksums, grants, role-boundary, Public-access, and application-authentication verification. It performs no backup, restore, deployment, Founder ceremony, or Founder-bootstrap lockdown. Failure stops without automatic rollback or role deletion.
+
+Render's administrative principal must have provider-supported role-creation and alteration authority. If it does not, preflight fails with a sanitized message. Do not weaken the role model or grant specialized membership to `rems_application`; treat this as a hosting-authority blocker.
+
+A successful hosted run is staging evidence only, never production evidence or operational certification. API/web must remain suspended until migrations, controlled configuration, and OIDC prerequisites pass independent review. No operational certification is claimed.
+
 ## Scope and hard stops
 
 This runbook permits synthetic staging verification only. Repository staging preparation is **not a

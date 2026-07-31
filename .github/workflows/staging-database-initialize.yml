@@ -1,0 +1,98 @@
+name: Initialize REMS staging database
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_commit_sha:
+        description: Full 40-character commit SHA expected at main
+        required: true
+        type: string
+      confirmation_phrase:
+        description: Type INITIALIZE REMS STAGING DATABASE
+        required: true
+        type: string
+      services_suspended:
+        description: I confirm rems-staging-api and rems-staging-web are suspended
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rems-staging-database-initialization
+  cancel-in-progress: false
+
+jobs:
+  authorize:
+    name: Fail-closed dispatch authorization
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate branch, revision, confirmation, and suspension
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_commit_sha }}
+          CONFIRMATION: ${{ inputs.confirmation_phrase }}
+          SERVICES_SUSPENDED: ${{ inputs.services_suspended }}
+          DISPATCH_SHA: ${{ github.sha }}
+          DISPATCH_REF: ${{ github.ref }}
+        run: |
+          set -eu
+          test "$DISPATCH_REF" = refs/heads/main
+          printf '%s' "$EXPECTED_SHA" | grep -Eq '^[0-9a-f]{40}$'
+          test "$EXPECTED_SHA" = "$DISPATCH_SHA"
+          test "$CONFIRMATION" = 'INITIALIZE REMS STAGING DATABASE'
+          test "$SERVICES_SUSPENDED" = true
+
+  initialize:
+    name: Bootstrap, migrate, and verify
+    needs: authorize
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: rems-staging-database
+    steps:
+      - name: Check out the reviewed main revision
+        # actions/checkout v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Install PostgreSQL 17 client tooling
+        run: |
+          set -eu
+          sudo install -d -m 0755 /usr/share/postgresql-common/pgdg
+          curl --fail --silent --show-error --output /tmp/postgresql-pgdg.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          sudo install -m 0644 /tmp/postgresql-pgdg.asc /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+          . /etc/os-release
+          printf '%s\n' "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update -qq
+          sudo apt-get install --yes --no-install-recommends postgresql-client-17 >/dev/null
+          test "$(/usr/lib/postgresql/17/bin/psql --version | awk '{print $3}' | cut -d. -f1)" = 17
+
+      - name: Install locked repository dependencies
+        run: |
+          set -eu
+          corepack enable
+          corepack prepare pnpm@9.15.4 --activate
+          pnpm install --frozen-lockfile
+
+      - name: Initialize and verify the staging database
+        env:
+          REMS_STAGING_ADMIN_DATABASE_URL: ${{ secrets.REMS_STAGING_ADMIN_DATABASE_URL }}
+          REMS_STAGING_MIGRATION_DATABASE_URL: ${{ secrets.REMS_STAGING_MIGRATION_DATABASE_URL }}
+          REMS_STAGING_APPLICATION_DATABASE_URL: ${{ secrets.REMS_STAGING_APPLICATION_DATABASE_URL }}
+          REMS_STAGING_MIGRATION_ROLE_PASSWORD: ${{ secrets.REMS_STAGING_MIGRATION_ROLE_PASSWORD }}
+          REMS_STAGING_APPLICATION_ROLE_PASSWORD: ${{ secrets.REMS_STAGING_APPLICATION_ROLE_PASSWORD }}
+          REMS_STAGING_AUDIT_READER_ROLE_PASSWORD: ${{ secrets.REMS_STAGING_AUDIT_READER_ROLE_PASSWORD }}
+          REMS_STAGING_EMERGENCY_ADMIN_ROLE_PASSWORD: ${{ secrets.REMS_STAGING_EMERGENCY_ADMIN_ROLE_PASSWORD }}
+          REMS_STAGING_FOUNDER_BOOTSTRAP_ROLE_PASSWORD: ${{ secrets.REMS_STAGING_FOUNDER_BOOTSTRAP_ROLE_PASSWORD }}
+          REMS_STAGING_IDENTITY_ADMIN_ROLE_PASSWORD: ${{ secrets.REMS_STAGING_IDENTITY_ADMIN_ROLE_PASSWORD }}
+          REMS_STAGING_SECURITY_READER_ROLE_PASSWORD: ${{ secrets.REMS_STAGING_SECURITY_READER_ROLE_PASSWORD }}
+          REMS_STAGING_BACKUP_ROLE_PASSWORD: ${{ secrets.REMS_STAGING_BACKUP_ROLE_PASSWORD }}
+        run: |
+          set -eu
+          node packages/database/admin/initialize-staging.mjs
